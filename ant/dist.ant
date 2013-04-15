@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<!--
+	Does all the packing. That is, creates the files that live in dist/
+-->
+
+<project name="dist">
+	<target name="zip" depends="jar">
+		<delete file="${zip.file}" />
+		<zip destfile="${zip.file}">
+			<fileset dir="${build.home}" includes="WEB-INF/**" />
+			<fileset dir="${build.home}" includes="css/**" />
+			<fileset dir="${build.home}" includes="images/**" />
+			<fileset dir="." includes="LICENSE.txt" />
+			<fileset dir="." includes="README.txt" />
+			<fileset dir="." includes="API.txt" />
+		</zip>
+	</target>
+	
+	<target name="jar">
+		<delete file="${jar.file}" />
+		<jar destfile="${jar.file}" basedir="${build.home}/classes" />
+	</target>
+</project>
