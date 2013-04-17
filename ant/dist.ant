@@ -15,6 +15,9 @@
 			<fileset dir="." includes="README.txt" />
 			<fileset dir="." includes="API.txt" />
 		</zip>
+		
+		<delete file="${jar.dist}" />
+    	<copy todir="${dist.home}" file="${jar.file}" overwrite="true" verbose="false" />
 	</target>
 	
 	<target name="jar">
