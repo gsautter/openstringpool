@@ -623,9 +623,8 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 			}
 			
 			private void includeBody() throws IOException {
-//				this.writeLine("<form action=\"" + this.request.getContextPath() + this.request.getServletPath() + "\" method=\"POST\" id=\"loginForm\">");
 				this.writeLine("<form action=\"" + this.request.getContextPath() + this.request.getServletPath() + "/" + ADMIN_ACTION_NAME + "\" method=\"POST\" id=\"loginForm\">");
-				this.writeLine("<input type=\"hidden\" name=\"" + ACTION_PARAMETER + "\" value=\"" + ADMIN_ACTION_NAME + "\">");
+				this.writeLine("<input type=\"hidden\" name=\"" + ACTION_PARAMETER + "\" value=\"" + ADMIN_ACTION_NAME + "\" />");
 				
 				this.writeLine("<table class=\"loginTable\" id=\"loginTable\">");
 				this.writeLine("<tr class=\"loginTableHead\">");
@@ -763,10 +762,9 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 			}
 			
 			private void includeBody() throws IOException {
-//				this.writeLine("<form style=\"display: 'none';\" action=\"" + this.request.getContextPath() + this.request.getServletPath() + "\" method=\"POST\" id=\"submitForm\">");
 				this.writeLine("<form style=\"display: 'none';\" action=\"" + this.request.getContextPath() + this.request.getServletPath() + "/" + ADMIN_ACTION_NAME + "\" method=\"POST\" id=\"submitForm\">");
-				this.writeLine("<input type=\"hidden\" name=\"" + ACTION_PARAMETER + "\" value=\"" + ADMIN_ACTION_NAME + "\">");
-				this.writeLine("<input type=\"hidden\" name=\"" + OPERATION_PARAMETER + "\" value=\"\" id=\"operation\">");
+				this.writeLine("<input type=\"hidden\" name=\"" + ACTION_PARAMETER + "\" value=\"" + ADMIN_ACTION_NAME + "\" />");
+				this.writeLine("<input type=\"hidden\" name=\"" + OPERATION_PARAMETER + "\" value=\"\" id=\"operation\" />");
 				this.writeLine("</form>");
 				
 				//	open main table
@@ -811,10 +809,10 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 				this.writeLine("</tr>");
 				this.writeLine("<tr class=\"nodesTableBody\">");
 				this.writeLine("<td class=\"nodesTableCell\">" + domainName + "</td>");
-				this.writeLine("<td class=\"nodesTableCell\"><input type=\"text\" class=\"urlInput\" name=\"" + ACCESS_URL_PARAMETER + "\" id=\"local.accessUrl\" value=\"" + accessUrl + "\"></td>");
+				this.writeLine("<td class=\"nodesTableCell\"><input type=\"text\" class=\"urlInput\" name=\"" + ACCESS_URL_PARAMETER + "\" id=\"local.accessUrl\" value=\"" + accessUrl + "\" /></td>");
 				this.writeLine("</tr>");
 				this.writeLine("<tr class=\"nodesTableBody\">");
-				this.writeLine("<td class=\"nodesTableCell\" colspan=\"2\"><input type=\"button\" class=\"button\" onclick=\"submitSetAccessUrl();return false;\" value=\"Set Preferred Access URL\"></td>");
+				this.writeLine("<td class=\"nodesTableCell\" colspan=\"2\"><input type=\"button\" class=\"button\" onclick=\"submitSetAccessUrl();return false;\" value=\"Set Preferred Access URL\" /></td>");
 				this.writeLine("</tr>");
 				this.writeLine("</table>");
 				
@@ -832,12 +830,12 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 				this.writeLine("<td class=\"nodesTableCell\">Confirm New Passcode</td>");
 				this.writeLine("</tr>");
 				this.writeLine("<tr class=\"nodesTableBody\">");
-				this.writeLine("<td class=\"nodesTableCell\"><input type=\"password\" class=\"passcodeInput\" name=\"passcode\" id=\"local.passcode\" value=\"\"></td>");
-				this.writeLine("<td class=\"nodesTableCell\"><input type=\"password\" class=\"passcodeInput\" name=\"newPasscode1\" id=\"local.newPasscode1\" value=\"\"></td>");
-				this.writeLine("<td class=\"nodesTableCell\"><input type=\"password\" class=\"passcodeInput\" name=\"newPasscode2\" id=\"local.newPasscode2\" value=\"\"></td>");
+				this.writeLine("<td class=\"nodesTableCell\"><input type=\"password\" class=\"passcodeInput\" name=\"passcode\" id=\"local.passcode\" value=\"\" /></td>");
+				this.writeLine("<td class=\"nodesTableCell\"><input type=\"password\" class=\"passcodeInput\" name=\"newPasscode1\" id=\"local.newPasscode1\" value=\"\" /></td>");
+				this.writeLine("<td class=\"nodesTableCell\"><input type=\"password\" class=\"passcodeInput\" name=\"newPasscode2\" id=\"local.newPasscode2\" value=\"\" /></td>");
 				this.writeLine("</tr>");
 				this.writeLine("<tr class=\"nodesTableBody\">");
-				this.writeLine("<td class=\"nodesTableCell\" colspan=\"3\"><input type=\"button\" class=\"button\" onclick=\"submitSetPasscode();return false;\" value=\"Set Passcode\"></td>");
+				this.writeLine("<td class=\"nodesTableCell\" colspan=\"3\"><input type=\"button\" class=\"button\" onclick=\"submitSetPasscode();return false;\" value=\"Set Passcode\" /></td>");
 				this.writeLine("</tr>");
 				this.writeLine("</table>");
 				
@@ -856,10 +854,10 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 				this.writeLine("<td class=\"nodesTableCell\">Access URL</td>");
 				this.writeLine("</tr>");
 				this.writeLine("<tr class=\"nodesTableBody\">");
-				this.writeLine("<td class=\"nodesTableCell\"><input type=\"text\" class=\"urlInput\" name=\"" + ACCESS_URL_PARAMETER + "\" id=\"new.accessUrl\" value=\"\"></td>");
+				this.writeLine("<td class=\"nodesTableCell\"><input type=\"text\" class=\"urlInput\" name=\"" + ACCESS_URL_PARAMETER + "\" id=\"new.accessUrl\" value=\"\" /></td>");
 				this.writeLine("</tr>");
 				this.writeLine("<tr class=\"nodesTableBody\">");
-				this.writeLine("<td class=\"nodesTableCell\"><input type=\"button\" class=\"button\" onclick=\"submitAddNode();return false;\" value=\"Add Node\"></td>");
+				this.writeLine("<td class=\"nodesTableCell\"><input type=\"button\" class=\"button\" onclick=\"submitAddNode();return false;\" value=\"Add Node\" /></td>");
 				this.writeLine("</tr>");
 				this.writeLine("</table>");
 				
@@ -891,18 +889,18 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 				for (int n = 0; n < nodes.length; n++) {
 					this.writeLine("<tr class=\"nodesTableBody\">");
 					this.writeLine("<td class=\"nodesTableCell\">" + nodes[n].name + "</td>");
-					this.writeLine("<td class=\"nodesTableCell\"><input type=\"checkbox\" name=\"" + nodes[n].name + ".active\" id=\"" + nodes[n].name + ".active\" value=\"true\"" + (nodes[n].active ? " checked" : "") + "></td>");
-					this.writeLine("<td class=\"nodesTableCell\"><input type=\"text\" size=\"5\" name=\"" + nodes[n].name + ".replicationInterval\" id=\"" + nodes[n].name + ".replicationInterval\" value=\"" + nodes[n].updateInterval + "\"> sec</td>");
+					this.writeLine("<td class=\"nodesTableCell\"><input type=\"checkbox\" name=\"" + nodes[n].name + ".active\" id=\"" + nodes[n].name + ".active\" value=\"true\"" + (nodes[n].active ? " checked" : "") + " /></td>");
+					this.writeLine("<td class=\"nodesTableCell\"><input type=\"text\" size=\"5\" name=\"" + nodes[n].name + ".replicationInterval\" id=\"" + nodes[n].name + ".replicationInterval\" value=\"" + nodes[n].updateInterval + "\" /> sec</td>");
 					this.writeLine("<td class=\"nodesTableCell\">" + df.format(new Date(nodes[n].lastUpdate)) + "</td>");
-					this.writeLine("<td class=\"nodesTableCell\"><input type=\"button\" onclick=\"submitResetReplication('" + nodes[n].name + "');return false;\" value=\"Reset\"></td>");
-					this.writeLine("<td class=\"nodesTableCell\"><input type=\"text\" class=\"urlInput\" name=\"" + nodes[n].name + ".accessUrl\" id=\"" + nodes[n].name + ".accessUrl\" value=\"" + nodes[n].accessUrl + "\"></td>");
-					this.writeLine("<td class=\"nodesTableCell\"><input type=\"button\" onclick=\"submitPing('" + nodes[n].name + "');return false;\" value=\"Ping\"></td>");
-					this.writeLine("<td class=\"nodesTableCell\"><input type=\"button\" onclick=\"submitGetNodes('" + nodes[n].name + "');return false;\" value=\"Import\"></td>");
+					this.writeLine("<td class=\"nodesTableCell\"><input type=\"button\" onclick=\"submitResetReplication('" + nodes[n].name + "');return false;\" value=\"Reset\" /></td>");
+					this.writeLine("<td class=\"nodesTableCell\"><input type=\"text\" class=\"urlInput\" name=\"" + nodes[n].name + ".accessUrl\" id=\"" + nodes[n].name + ".accessUrl\" value=\"" + nodes[n].accessUrl + "\" /></td>");
+					this.writeLine("<td class=\"nodesTableCell\"><input type=\"button\" onclick=\"submitPing('" + nodes[n].name + "');return false;\" value=\"Ping\" /></td>");
+					this.writeLine("<td class=\"nodesTableCell\"><input type=\"button\" onclick=\"submitGetNodes('" + nodes[n].name + "');return false;\" value=\"Import\" /></td>");
 					this.writeLine("</tr>");
 				}
 				
 				this.writeLine("<tr class=\"nodesTableBody\">");
-				this.writeLine("<td class=\"nodesTableCell\" colspan=\"8\"><input type=\"button\" class=\"button\" onclick=\"submitUpdateNodes();return false;\" value=\"Update Nodes\"></td>");
+				this.writeLine("<td class=\"nodesTableCell\" colspan=\"8\"><input type=\"button\" class=\"button\" onclick=\"submitUpdateNodes();return false;\" value=\"Update Nodes\" /></td>");
 				this.writeLine("</tr>");
 				
 				this.writeLine("</table>");
@@ -972,7 +970,6 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 		}
 		boolean ping() {
 			try {
-//				URL pingUrl = new URL(this.accessUrl + "?" + ACTION_PARAMETER + "=" + PING_ACTION_NAME);
 				URL pingUrl = new URL(this.accessUrl + "/" + PING_ACTION_NAME + "?" + ACTION_PARAMETER + "=" + PING_ACTION_NAME);
 				BufferedReader br = new BufferedReader(new InputStreamReader(pingUrl.openStream(), ENCODING));
 				String pong = br.readLine();
@@ -985,7 +982,6 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 		}
 		OnnNode[] getNodes() {
 			try {
-//				URL nodesUrl = new URL(this.accessUrl + "?" + ACTION_PARAMETER + "=" + NODES_ACTION_NAME);
 				URL nodesUrl = new URL(this.accessUrl + "/" + NODES_ACTION_NAME + "?" + ACTION_PARAMETER + "=" + NODES_ACTION_NAME);
 				BufferedReader br = new BufferedReader(new InputStreamReader(nodesUrl.openStream(), ENCODING));
 				return readNodes(br);
@@ -996,7 +992,6 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 		}
 		OnnNode[] introduceTo(String domainName, String accessUrl) {
 			try {
-//				URL introduceUrl = new URL(this.accessUrl);
 				URL introduceUrl = new URL(this.accessUrl + "/" + INTRODUCE_ACTION_NAME);
 				HttpURLConnection con = ((HttpURLConnection) introduceUrl.openConnection());
 				con.setRequestMethod("POST");
@@ -1014,7 +1009,6 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 			}
 		}
 		private String getName() throws IOException {
-//			URL nodesUrl = new URL(this.accessUrl + "?" + ACTION_PARAMETER + "=" + NAME_ACTION_NAME);
 			URL nodesUrl = new URL(this.accessUrl + "/" + NAME_ACTION_NAME + "?" + ACTION_PARAMETER + "=" + NAME_ACTION_NAME);
 			BufferedReader br = new BufferedReader(new InputStreamReader(nodesUrl.openStream(), ENCODING));
 			OnnNode[] nodes = readNodes(br);
