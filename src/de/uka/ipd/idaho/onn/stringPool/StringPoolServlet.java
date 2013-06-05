@@ -1782,7 +1782,25 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			checksumDigesters.addLast(md);
 		}
 	}
-	private static String getChecksum(String string) throws IOException {
+	
+	/**
+	 * Generate a 32 character hexadecimal ID from a given string. This default
+	 * implementation returns the MD5 hash of the argument string in UTF-8
+	 * encoding. Subclasses overwriting this method with their own ID generation
+	 * have to make sure of three things for Open String Pool to worl properly:
+	 * <ul>
+	 * <li>returned IDs are exactly 32 characters long, preferably 128 bit HEX</li>
+	 * <li>returned IDs are always the same for the same argument string</li>
+	 * <li>the same implementation of this method is used on all modes</li>
+	 * </ul>
+	 * Implementations should also bear in mind that this method might be called
+	 * by multiple threads at the same time. This implementation uses an
+	 * instance pool of message digesters to increase performance.
+	 * @param string the string to generate the ID for
+	 * @return the ID for the argument string
+	 * @throws IOException if any occurs
+	 */
+	protected String getStringId(String string) throws IOException {
 		MessageDigest md = null;
 		try {
 			md = getMessageDigest();
@@ -1797,7 +1815,27 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			returnMessageDigest(md);
 		}
 	}
-	private static String getChecksum(QueriableAnnotation string) throws IOException {
+	
+	/**
+	 * Computation a 32 character hexadecimal checksum from the parsed version
+	 * of a string. This default implementation returns the MD5 hash of the XML
+	 * representation of the argument parsed string in UTF-8 encoding.
+	 * Subclasses overwriting this method with their own checksum computation
+	 * method have to make sure of three things for Open String Pool to worl
+	 * properly:
+	 * <ul>
+	 * <li>returned IDs are exactly 32 characters long, preferably 128 bit HEX</li>
+	 * <li>returned IDs are always the same for the same argument string</li>
+	 * <li>the same implementation of this method is used on all modes</li>
+	 * </ul>
+	 * Implementations should also bear in mind that this method might be called
+	 * by multiple threads at the same time. This implementation uses an
+	 * instance pool of message digesters to increase performance.
+	 * @param parsedString the parsed string to generate the checksum for
+	 * @return the checksum for the argument parsed string
+	 * @throws IOException if any occurs
+	 */
+	protected String getParseChecksum(QueriableAnnotation parsedString) throws IOException {
 		MessageDigest md = null;
 		try {
 			md = getMessageDigest();
@@ -1808,7 +1846,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 					//	ignore newlines to eliminate whitespace between tags
 				}
 			};
-			AnnotationUtils.writeXML(string, stringWriter);
+			AnnotationUtils.writeXML(parsedString, stringWriter);
 			stringWriter.flush();
 			md.update(stringReceiver.toString().getBytes("UTF-8"));
 			byte[] checksumBytes = md.digest();
@@ -1837,11 +1875,32 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		urlEtcPrefixesSpaceAfter.add("handle");
 		urlEtcPrefixesSpaceAfter.add("hdl");
 	}
-	private static String getNormalizedString(String string) {
+	
+	/**
+	 * Normalize a string. In prticular, this method does the following:
+	 * <ul>
+	 * <li>de-hyphenates words if they are separated by a line breaking
+	 * character</li>
+	 * <li>replace sequences of multiple spaces with a single one</li>
+	 * <li>replace all high commas and single quotes with the apostrophes (0x27)
+	 * </li>
+	 * <li>replace all dashes with minusses (0x2D)</li>
+	 * <li>normalized all whitespace, including linebreaks, to space characters
+	 * (0x20)</li>
+	 * <li>cut leading and tailing whitespace</li>
+	 * </ul>
+	 * Subclasses wanting to do further normalization should overwrite this
+	 * method and make the super call at some point, preferably at the start.
+	 * Subclasses wanting provide their very own normalization should overwrite
+	 * this method without making the super call.
+	 * @param string the string to normalize
+	 * @return the normalized string
+	 */
+	protected String getNormalizedString(String string) {
 		
 		//	normalize dashes, high commas, etc.
 		string = string.replaceAll("[\\´\\`\\’\\‘\\‚]", "'");
-		string = string.replaceAll("[\\—\\—]", "-");
+		string = string.replaceAll("[\\-\\­\\—\\—]", "-");
 		//	not_TODO maybe normalize letters as well
 		
 		//	catch empty strings
@@ -1958,7 +2017,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			this.localUpdateTime = localUpdateTime;
 			this.deleted = deleted;
 			this.stringPlain = getNormalizedString(stringPlain);
-			this.id = getChecksum(this.stringPlain);
+			this.id = getStringId(this.stringPlain);
 			this.canonicalId = "";
 			this.type = null;
 			this.stringParsed = null;
@@ -1982,7 +2041,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			this.localUpdateTime = localUpdateTime;
 			this.deleted = deleted;
 			this.stringPlain = getNormalizedString(stringPlain);
-			this.id = getChecksum(this.stringPlain);
+			this.id = getStringId(this.stringPlain);
 			this.canonicalId = ((canonicalStringId == null) ? "" : canonicalStringId);
 			
 			//	only plain string, no clue regarding type
@@ -1998,7 +2057,8 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 				this.type = getStringType(stringParsed);
 				String parseError = checkParsedString(this.id, this.stringPlain, stringParsed);
 				this.stringParsed = ((parseError == null) ? stringParsed : null);
-				this.parseChecksum = ((parseError == null) ? getChecksum(this.stringParsed) : "");
+//				this.parseChecksum = ((parseError == null) ? getChecksum(this.stringParsed) : "");
+				this.parseChecksum = ((parseError == null) ? getParseChecksum(this.stringParsed) : "");
 				this.parseError = ((parseError == null) ? "" : parseError);
 			}
 		}
