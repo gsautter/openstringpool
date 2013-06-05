@@ -8,9 +8,8 @@
 	<target name="zip" depends="jar">
 		<delete file="${zip.file}" />
 		<zip destfile="${zip.file}">
-			<fileset dir="${build.home}" includes="WEB-INF/**" />
-			<fileset dir="${build.home}" includes="css/**" />
-			<fileset dir="${build.home}" includes="images/**" />
+			<fileset dir="${web.home}" />
+			<fileset dir="${build.home}" includes="WEB-INF/lib/**.jar" />
 			<fileset dir="." includes="LICENSE.txt" />
 			<fileset dir="." includes="README.txt" />
 			<fileset dir="." includes="API.txt" />

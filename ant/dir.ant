@@ -24,10 +24,6 @@
 	
 	<!-- copy everything that needs to be in the .zip -->
 	<target name="copy" depends="mkdirs" >
-		<!-- Copy static content of this web application -->
-    	<copy todir="${build.home}" overwrite="true" verbose="false">
-			<fileset dir="${web.home}" />
-		</copy>
 		<!-- copy required libraries -->
 		<copy todir="${build.home}/WEB-INF/lib">
 			<fileset dir="${lib.home}" />
