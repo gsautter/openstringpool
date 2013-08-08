@@ -528,11 +528,23 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	 * @see javax.servlet.http.HttpServlet#doGet(javax.servlet.http.HttpServletRequest, javax.servlet.http.HttpServletResponse)
 	 */
 	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-		String action = request.getParameter(ACTION_PARAMETER);
+		String action = request.getPathInfo();
+		if (action == null)
+			action = request.getParameter(ACTION_PARAMETER);
+		else {
+			while (action.startsWith("/"))
+				action = action.substring(1);
+			if (action.indexOf('/') != -1)
+				action = action.substring(0, action.indexOf('/'));
+		}
 		
 		//	request for string feed
 		if (FEED_ACTION_NAME.equals(action))
 			this.doFeedStrings(request, response);
+		
+		//	request for RSS string feed
+		else if (RSS_FEED_ACTION_NAME.equals(action))
+			this.doRssFeedStrings(request, response);
 		
 		//	ID-based request for strings
 		else if (GET_ACTION_NAME.equals(action))
@@ -577,6 +589,54 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			strings.close();
 		}
 	}
+	
+	private void doRssFeedStrings(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		int top = 100;
+		String topString = request.getParameter(TOP_PARAMETER);
+		if (topString != null) try {
+			top = Integer.parseInt(topString);
+		} catch (NumberFormatException nfe) {}
+		
+		String webAppName = request.getContextPath();
+		while (webAppName.startsWith("/"))
+			webAppName = webAppName.substring(1);
+		
+		InternalPooledStringIterator strings = this.getStringRssFeed(top);
+		try {
+			response.setCharacterEncoding(ENCODING);
+			response.setContentType("application/rss+xml");
+			
+			BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(response.getOutputStream(), ENCODING));
+			bw.write("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>"); bw.newLine();
+			bw.write("<rss version=\"2.0\">"); bw.newLine();
+			bw.write("<channel>"); bw.newLine();
+			
+			bw.write("<title>" + webAppName + " Latest Updates</title>"); bw.newLine();
+			bw.write("<description>These are the latest " + 100 + " additions to " + webAppName + "</description>"); bw.newLine();
+			bw.write("<link>http://" + request.getServerName() + request.getContextPath() + "/</link>"); bw.newLine();
+			
+			if (strings.hasNextString()) {
+				InternalPooledString string = strings.getNextString();
+				bw.write("<lastBuildDate>" + TIMESTAMP_DATE_FORMAT.format(new Date(string.createTime)) + "</lastBuildDate>"); bw.newLine();
+				while (string != null) {
+					bw.write("<item>"); bw.newLine();
+					bw.write("<title>" +  AnnotationUtils.escapeForXml(string.stringPlain, true) + "</title>"); bw.newLine();
+					bw.write("<link>http://" + request.getServerName() + request.getContextPath() + request.getServletPath() + "/" + GET_ACTION_NAME + "?" + STRING_ID_ATTRIBUTE + "=" + string.id + "</link>"); bw.newLine();
+					bw.write("<guid>" + string.id + "</guid>"); bw.newLine();
+					bw.write("<pubDate>" + TIMESTAMP_DATE_FORMAT.format(new Date(string.createTime)) + "</pubDate>"); bw.newLine();
+					bw.write("</item>"); bw.newLine();
+					string = (strings.hasNextString() ? strings.getNextString() : null);
+				}
+			}
+			
+			bw.write("</channel>"); bw.newLine();
+			bw.write("</rss>"); bw.newLine();
+			bw.flush();
+		}
+		finally {
+			strings.close();
+		}
+	}	
 	
 	private void doGetStrings(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
 		String[] ids = request.getParameterValues(ID_PARAMETER);
@@ -1562,7 +1622,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			System.out.println("ParsedStringPool: " + sqle.getClass().getName() + " (" + sqle.getMessage() + ") while getting strings.");
 			System.out.println("  query was " + query);
 		}
-		return new SqlParsedStringIterator(sqr, false);
+		return new SqlParsedStringIterator(sqr, 'O');
 	}
 	
 	private InternalPooledStringIterator getInternalLinkedStrings(String canonicalId) throws IOException {
@@ -1622,7 +1682,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			System.out.println("ParsedStringPool: " + sqle.getClass().getName() + " (" + sqle.getMessage() + ") while getting linked strings.");
 			System.out.println("  query was " + query);
 		}
-		return new SqlParsedStringIterator(sqr, false);
+		return new SqlParsedStringIterator(sqr, 'O');
 	}
 	
 	private InternalPooledStringIterator findInternalStrings(String[] fullTextQueryPredicates, boolean disjunctive, Properties detailPredicates) throws IOException {
@@ -1734,7 +1794,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			System.out.println("  query was " + query);
 		}
 		System.out.println("StringPoolServlet: search result wrapped");
-		return new SqlParsedStringIterator(sqr, false);
+		return new SqlParsedStringIterator(sqr, 'O');
 	}
 	
 	/*
@@ -1757,7 +1817,25 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			System.out.println("ParsedStringPool: " + sqle.getClass().getName() + " (" + sqle.getMessage() + ") while loading string feed.");
 			System.out.println("  query was " + query);
 		}
-		return new SqlParsedStringIterator(sqr, true);
+		return new SqlParsedStringIterator(sqr, 'F');
+	}
+	
+	private InternalPooledStringIterator getStringRssFeed(int top) throws IOException {
+		String query = "SELECT " + STRING_ID_COLUMN_NAME + ", " + CREATE_TIME_COLUMN_NAME + ", " + UPDATE_TIME_COLUMN_NAME + ", " + STRING_TEXT_COLUMN_NAME +  
+				" FROM " + this.parsedStringTableName +
+				" ORDER BY " + CREATE_TIME_COLUMN_NAME + " DESC" +
+				" LIMIT " + top + 
+				";";
+		
+		SqlQueryResult sqr = null;
+		try {
+			sqr = this.io.executeSelectQuery(query);
+		}
+		catch (SQLException sqle) {
+			System.out.println("ParsedStringPool: " + sqle.getClass().getName() + " (" + sqle.getMessage() + ") while loading RSS feed.");
+			System.out.println("  query was " + query);
+		}
+		return new SqlParsedStringIterator(sqr, 'R');
 	}
 	
 	private static LinkedList checksumDigesters = new LinkedList();
@@ -1982,7 +2060,12 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			this.type = existingString.type;
 		}
 		
-		//	used for feed input
+		//	used for RSS feed output
+		InternalPooledString(String id, long createTime, long updateTime, String stringPlain) {
+			this(id, null, null, createTime, null, null, updateTime, null, null, -1, false, stringPlain);
+		}
+		
+		//	used for feed output
 		InternalPooledString(String id, String canonicalId, String parseChecksum, long createTime, long updateTime, long localUpdateTime, boolean deleted) {
 			this(id, canonicalId, parseChecksum, createTime, null, null, updateTime, null, null, localUpdateTime, deleted, null);
 		}
@@ -2113,11 +2196,11 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	
 	private class SqlParsedStringIterator extends InternalPooledStringIterator {
 		private SqlQueryResult sqr;
-		private boolean forFeed;
+		private char type;
 		private InternalPooledString next;
-		SqlParsedStringIterator(SqlQueryResult sqr, boolean forFeed) {
+		SqlParsedStringIterator(SqlQueryResult sqr, char type) {
 			this.sqr = sqr;
-			this.forFeed = forFeed;
+			this.type = type;
 		}
 		public boolean hasNextString() {
 			if (this.next != null)
@@ -2125,32 +2208,37 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			else if (this.sqr == null)
 				return false;
 			else if (this.sqr.next()) {
-				this.next = (this.forFeed ? 
-					new InternalPooledString(
-							sqr.getString(0), 
-							sqr.getString(1), 
-							sqr.getString(2), 
-							Long.parseLong(sqr.getString(3)), 
-							Long.parseLong(sqr.getString(4)), 
-							Long.parseLong(sqr.getString(5)),
-							"D".equals(sqr.getString(6))
-						)
-					:
-					new InternalPooledString(
-							sqr.getString(0), 
-							sqr.getString(1), 
-							sqr.getString(2), 
-							Long.parseLong(sqr.getString(3)), 
-							sqr.getString(4), 
-							sqr.getString(5), 
-							Long.parseLong(sqr.getString(6)), 
-							sqr.getString(7), 
-							sqr.getString(8), 
-							Long.parseLong(sqr.getString(9)), 
-							"D".equals(sqr.getString(10)),
-							sqr.getString(11)
-						)
-				);
+				if (this.type == 'F')
+					this.next = new InternalPooledString(
+							this.sqr.getString(0), 
+							this.sqr.getString(1), 
+							this.sqr.getString(2), 
+							Long.parseLong(this.sqr.getString(3)), 
+							Long.parseLong(this.sqr.getString(4)), 
+							Long.parseLong(this.sqr.getString(5)),
+							"D".equals(this.sqr.getString(6))
+						);
+				else if (this.type == 'R')
+					this.next = new InternalPooledString(
+							this.sqr.getString(0), 
+							Long.parseLong(this.sqr.getString(1)), 
+							Long.parseLong(this.sqr.getString(2)), 
+							this.sqr.getString(3)
+						);
+				else this.next = new InternalPooledString(
+						this.sqr.getString(0), 
+						this.sqr.getString(1), 
+						this.sqr.getString(2), 
+						Long.parseLong(this.sqr.getString(3)), 
+						this.sqr.getString(4), 
+						this.sqr.getString(5), 
+						Long.parseLong(this.sqr.getString(6)), 
+						this.sqr.getString(7), 
+						this.sqr.getString(8), 
+						Long.parseLong(this.sqr.getString(9)), 
+						"D".equals(this.sqr.getString(10)),
+						this.sqr.getString(11)
+					);
 				return true;
 			}
 			else return false;

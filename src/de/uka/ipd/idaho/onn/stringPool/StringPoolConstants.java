@@ -58,9 +58,12 @@ public interface StringPoolConstants extends OnnConstants {
 	public static final String STRING_PARSED_NODE_TYPE = (SP_XML_NAMESPACE_PREFIX + "stringParsed");
 	
 	public static final String FEED_ACTION_NAME = "feed";
+	public static final String RSS_FEED_ACTION_NAME = "rss";
 	public static final String GET_ACTION_NAME = "get";
 	public static final String FIND_ACTION_NAME = "find";
 	public static final String UPDATE_ACTION_NAME = "update";
+	
+	public static final String TOP_PARAMETER = "top";
 	
 	public static final String ID_PARAMETER = "id";
 	public static final String QUERY_PARAMETER = "query";

@@ -81,6 +81,11 @@ StringPoolServlet servlet (extends OnnServlet) (/StringPool/sp):
               <string ... />
             </stringSet>
 
+        action=rss: retrieve an RSS feed announcing recently added strings, ordered by decreasing upload time
+            additional parameters:
+                top: number of strings to include in the feed (defaults to 100 if not specified)
+            response: an RSS feed announcing the latest additions (MIME type text/xml, encoding UTF-8)
+
         action=get: resolve StringPool internal identifiers
             additional parameters:
                 id: the identifier(s) to resolve, can be multi-valued
