@@ -612,7 +612,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			bw.write("<channel>"); bw.newLine();
 			
 			bw.write("<title>" + webAppName + " Latest Updates</title>"); bw.newLine();
-			bw.write("<description>These are the latest " + 100 + " additions to " + webAppName + "</description>"); bw.newLine();
+			bw.write("<description>These are the latest " + top + " additions to " + webAppName + "</description>"); bw.newLine();
 			bw.write("<link>http://" + request.getServerName() + request.getContextPath() + "/</link>"); bw.newLine();
 			
 			if (strings.hasNextString()) {
