@@ -674,6 +674,11 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	private void doFindStrings(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
 		String[] fullTextQueryPredicates = request.getParameterValues(QUERY_PARAMETER);
 		boolean disjunctive = OR_COMBINE.equals(request.getParameter(COMBINE_PARAMETER));
+		int limit = 0;
+		String limitString = request.getParameter(LIMIT_PARAMETER);
+		if (limitString != null) try {
+			limit = Integer.parseInt(limitString);
+		} catch (NumberFormatException nfe) {}
 		
 		Properties detailPredicates = new Properties();
 		String typeQueryPredicate = request.getParameter(TYPE_PARAMETER);
@@ -691,7 +696,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			return;
 		}
 		
-		InternalPooledStringIterator strings = this.findInternalStrings(fullTextQueryPredicates, disjunctive, detailPredicates);
+		InternalPooledStringIterator strings = this.findInternalStrings(fullTextQueryPredicates, disjunctive, limit, detailPredicates);
 		System.out.println("StringPoolServlet: REST search complete");
 		
 		try {
@@ -1685,7 +1690,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		return new SqlParsedStringIterator(sqr, 'O');
 	}
 	
-	private InternalPooledStringIterator findInternalStrings(String[] fullTextQueryPredicates, boolean disjunctive, Properties detailPredicates) throws IOException {
+	private InternalPooledStringIterator findInternalStrings(String[] fullTextQueryPredicates, boolean disjunctive, int limit, Properties detailPredicates) throws IOException {
 		StringBuffer where = new StringBuffer(disjunctive ? "(1=0" : "(1=1");
 		if (fullTextQueryPredicates != null)
 			for (int q = 0; q < fullTextQueryPredicates.length; q++) {
@@ -1774,6 +1779,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 						" AND (data." + STRING_ID_COLUMN_NAME + " = ids." + STRING_ID_COLUMN_NAME + ")"
 					) : "") +
 				" AND " + where + 
+				((limit > 0) ? (" LIMIT " + limit) : "") + 
 				";";
 		
 		//	full text predicates only, no need for join
@@ -2425,17 +2431,17 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	}
 	
 	/* (non-Javadoc)
-	 * @see de.uka.ipd.idaho.onn.stringPool.StringPoolClient#findStrings(java.lang.String[], boolean, java.lang.String, java.lang.String)
+	 * @see de.uka.ipd.idaho.onn.stringPool.StringPoolClient#findStrings(java.lang.String[], boolean, java.lang.String, java.lang.String, int)
 	 */
-	public PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user) {
-		return this.findStrings(textPredicates, disjunctive, type, user, false);
+	public PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, int limit) {
+		return this.findStrings(textPredicates, disjunctive, type, user, false, limit);
 	}
-
+	
 	/* (non-Javadoc)
-	 * @see de.uka.ipd.idaho.onn.stringPool.StringPoolClient#findStrings(java.lang.String[], boolean, java.lang.String, java.lang.String, boolean)
+	 * @see de.uka.ipd.idaho.onn.stringPool.StringPoolClient#findStrings(java.lang.String[], boolean, java.lang.String, java.lang.String, boolean, int)
 	 */
-	public PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, boolean concise) {
-		return this.findStrings(textPredicates, disjunctive, type, user, concise, null);
+	public PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, boolean concise, int limit) {
+		return this.findStrings(textPredicates, disjunctive, type, user, concise, limit, null);
 	}
 	
 	/**
@@ -2446,11 +2452,12 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	 * @param type the type of strings to search
 	 * @param user the name of the user to contribute or last update the strings
 	 * @param concise obtain a concise result, i.e., without parses?
+	 * @param limit the maximum number of strings to include in the result (0 means no limit)
 	 * @param detailPredicates the predicates to match against a sub class
 	 *            specific index, given in a properties object
 	 * @return an iterator over the strings matching the query
 	 */
-	protected PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, final boolean concise, Properties detailPredicates) {
+	protected PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, final boolean concise, int limit, Properties detailPredicates) {
 		if (((textPredicates == null) || (textPredicates.length == 0)) && (type == null) && (user == null) && ((detailPredicates == null) || detailPredicates.isEmpty()))
 			return new ExceptionPSI(new IOException("Empty query"));
 		try {
@@ -2464,7 +2471,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 					detailPredicates = new Properties();
 				detailPredicates.setProperty(USER_PARAMETER, user);
 			}
-			InternalPooledStringIterator ipsi = this.findInternalStrings(textPredicates, disjunctive, detailPredicates);
+			InternalPooledStringIterator ipsi = this.findInternalStrings(textPredicates, disjunctive, limit, detailPredicates);
 			System.out.println("StringPoolServlet: direct search complete");
 			return new PooledStringIteratorLC(ipsi, false, concise);
 		}

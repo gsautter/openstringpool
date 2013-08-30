@@ -316,9 +316,10 @@ public interface StringPoolClient {
 	 * @param disjunctive combine the predicates with 'or'?
 	 * @param type the type of strings to search
 	 * @param user the name of the user to contribute or last update the strings
+	 * @param limit the maximum number of strings to include in the result (0 means no limit)
 	 * @return an iterator over the strings matching the query
 	 */
-	public abstract PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user);
+	public abstract PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, int limit);
 	
 	/**
 	 * Find strings using full text search.
@@ -327,9 +328,10 @@ public interface StringPoolClient {
 	 * @param type the type of strings to search
 	 * @param user the name of the user to contribute or last update the strings
 	 * @param concise obtain a concise result, i.e., without parses?
+	 * @param limit the maximum number of strings to include in the result (0 means no limit)
 	 * @return an iterator over the strings matching the query
 	 */
-	public abstract PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, boolean concise);
+	public abstract PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, boolean concise, int limit);
 	
 	/**
 	 * Retrieve the strings updated since a given UTC timestamp.

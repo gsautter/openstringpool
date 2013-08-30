@@ -355,17 +355,17 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 	}
 	
 	/* (non-Javadoc)
-	 * @see de.uka.ipd.idaho.onn.stringPool.StringPoolClient#findStrings(java.lang.String[], boolean, java.lang.String, java.lang.String)
+	 * @see de.uka.ipd.idaho.onn.stringPool.StringPoolClient#findStrings(java.lang.String[], boolean, java.lang.String, java.lang.String, int)
 	 */
-	public PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user) {
-		return this.findStrings(textPredicates, disjunctive, type, user, false);
+	public PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, int limit) {
+		return this.findStrings(textPredicates, disjunctive, type, user, false, limit);
 	}
 	
 	/* (non-Javadoc)
-	 * @see de.uka.ipd.idaho.onn.stringPool.StringPoolClient#findStrings(java.lang.String[], boolean, java.lang.String, java.lang.String, boolean)
+	 * @see de.uka.ipd.idaho.onn.stringPool.StringPoolClient#findStrings(java.lang.String[], boolean, java.lang.String, java.lang.String, boolean, int)
 	 */
-	public PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, boolean concise) {
-		return this.findStrings(textPredicates, disjunctive, type, user, concise, null);
+	public PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, boolean concise, int limit) {
+		return this.findStrings(textPredicates, disjunctive, type, user, concise, limit, null);
 	}
 	
 	/**
@@ -376,11 +376,13 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 	 * @param type the type of strings to search
 	 * @param user the name of the user to contribute or last update the strings
 	 * @param concise obtain a concise result, i.e., without parses?
+	 * @param limit the maximum number of strings to include in the result (0
+	 *            means no limit)
 	 * @param detailPredicates the predicates to match against a sub class
 	 *            specific index
 	 * @return an iterator over the strings matching the query
 	 */
-	protected PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, boolean concise, String detailPredicates) {
+	protected PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, boolean concise, int limit, String detailPredicates) {
 		try {
 			StringBuffer queryString = new StringBuffer();
 			if (textPredicates != null) {
@@ -395,6 +397,8 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 				queryString.append("&" + USER_PARAMETER + "=" + URLEncoder.encode(user, ENCODING));
 			if (concise)
 				queryString.append("&" + FORMAT_PARAMETER + "=" + CONCISE_FORMAT);
+			if (limit > 0)
+				queryString.append("&" + LIMIT_PARAMETER + "=" + limit);
 			if ((detailPredicates != null) && (detailPredicates.length() != 0)) {
 				if (!detailPredicates.startsWith("&"))
 					queryString.append("&");

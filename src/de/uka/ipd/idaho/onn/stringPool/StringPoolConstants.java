@@ -64,6 +64,7 @@ public interface StringPoolConstants extends OnnConstants {
 	public static final String UPDATE_ACTION_NAME = "update";
 	
 	public static final String TOP_PARAMETER = "top";
+	public static final String LIMIT_PARAMETER = "limit";
 	
 	public static final String ID_PARAMETER = "id";
 	public static final String QUERY_PARAMETER = "query";
