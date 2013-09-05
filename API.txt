@@ -109,6 +109,7 @@ StringPoolServlet servlet (extends OnnServlet) (/StringPool/sp):
                 format=concise: exclude parsed verion of strings from response
                 format: the name of the format for representing the parsed verion of the strings (defaults to the native XML if not specified)
                 limit: the maximum number of strings to include in the search result (0, the default, means no limit)
+                sco: set to sco to restrict search results to strings not marked as duplicates of others
             response: the reference matching the specified search criteria (MIME type text/xml, encoding UTF-8)
 
             <stringSet>

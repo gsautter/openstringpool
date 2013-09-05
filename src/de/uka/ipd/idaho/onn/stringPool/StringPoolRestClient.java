@@ -355,17 +355,17 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 	}
 	
 	/* (non-Javadoc)
-	 * @see de.uka.ipd.idaho.onn.stringPool.StringPoolClient#findStrings(java.lang.String[], boolean, java.lang.String, java.lang.String, int)
+	 * @see de.uka.ipd.idaho.onn.stringPool.StringPoolClient#findStrings(java.lang.String[], boolean, java.lang.String, java.lang.String, int, boolean)
 	 */
-	public PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, int limit) {
-		return this.findStrings(textPredicates, disjunctive, type, user, false, limit);
+	public PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, int limit, boolean selfCanonicalOnly) {
+		return this.findStrings(textPredicates, disjunctive, type, user, false, limit, selfCanonicalOnly);
 	}
 	
 	/* (non-Javadoc)
-	 * @see de.uka.ipd.idaho.onn.stringPool.StringPoolClient#findStrings(java.lang.String[], boolean, java.lang.String, java.lang.String, boolean, int)
+	 * @see de.uka.ipd.idaho.onn.stringPool.StringPoolClient#findStrings(java.lang.String[], boolean, java.lang.String, java.lang.String, boolean, int, boolean)
 	 */
-	public PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, boolean concise, int limit) {
-		return this.findStrings(textPredicates, disjunctive, type, user, concise, limit, null);
+	public PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, boolean concise, int limit, boolean selfCanonicalOnly) {
+		return this.findStrings(textPredicates, disjunctive, type, user, concise, limit, selfCanonicalOnly, null);
 	}
 	
 	/**
@@ -378,11 +378,12 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 	 * @param concise obtain a concise result, i.e., without parses?
 	 * @param limit the maximum number of strings to include in the result (0
 	 *            means no limit)
+	 * @param selfCanonicalOnly filter out strings linked to others?
 	 * @param detailPredicates the predicates to match against a sub class
 	 *            specific index
 	 * @return an iterator over the strings matching the query
 	 */
-	protected PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, boolean concise, int limit, String detailPredicates) {
+	protected PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, boolean concise, int limit, boolean selfCanonicalOnly, String detailPredicates) {
 		try {
 			StringBuffer queryString = new StringBuffer();
 			if (textPredicates != null) {
@@ -399,6 +400,8 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 				queryString.append("&" + FORMAT_PARAMETER + "=" + CONCISE_FORMAT);
 			if (limit > 0)
 				queryString.append("&" + LIMIT_PARAMETER + "=" + limit);
+			if (selfCanonicalOnly)
+				queryString.append("&" + SELF_CANONICAL_ONLY_PARAMETER + "=" + SELF_CANONICAL_ONLY_PARAMETER);
 			if ((detailPredicates != null) && (detailPredicates.length() != 0)) {
 				if (!detailPredicates.startsWith("&"))
 					queryString.append("&");
@@ -618,11 +621,8 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 		HttpURLConnection putCon = ((HttpURLConnection) putUrl.openConnection());
 		putCon.setDoInput(true);
 		putCon.setDoOutput(true);
-//		putCon.setRequestMethod("PUT");
 		putCon.setRequestMethod("POST");
 		putCon.setRequestProperty("Data-Format", "xml");
-//		if (user != null)
-//			putCon.setRequestProperty("User-Name", user);
 		if (user != null)
 			putCon.setRequestProperty(USER_PARAMETER, user);
 		BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(putCon.getOutputStream(), ENCODING));

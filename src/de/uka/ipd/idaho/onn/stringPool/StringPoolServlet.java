@@ -696,7 +696,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			return;
 		}
 		
-		InternalPooledStringIterator strings = this.findInternalStrings(fullTextQueryPredicates, disjunctive, limit, detailPredicates);
+		InternalPooledStringIterator strings = this.findInternalStrings(fullTextQueryPredicates, disjunctive, limit, SELF_CANONICAL_ONLY_PARAMETER.equals(request.getParameter(SELF_CANONICAL_ONLY_PARAMETER)), detailPredicates);
 		System.out.println("StringPoolServlet: REST search complete");
 		
 		try {
@@ -1690,7 +1690,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		return new SqlParsedStringIterator(sqr, 'O');
 	}
 	
-	private InternalPooledStringIterator findInternalStrings(String[] fullTextQueryPredicates, boolean disjunctive, int limit, Properties detailPredicates) throws IOException {
+	private InternalPooledStringIterator findInternalStrings(String[] fullTextQueryPredicates, boolean disjunctive, int limit, boolean selfCanonicalOnly, Properties detailPredicates) throws IOException {
 		StringBuffer where = new StringBuffer(disjunctive ? "(1=0" : "(1=1");
 		if (fullTextQueryPredicates != null)
 			for (int q = 0; q < fullTextQueryPredicates.length; q++) {
@@ -1733,7 +1733,8 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			throw new IOException("Invalid query");
 		
 		//	filter out strings that are not self-canonical
-		where.append(" AND (data." + STRING_ID_HASH_COLUMN_NAME + " = data." + CANONICAL_STRING_ID_HASH_COLUMN_NAME + " OR data." + CANONICAL_STRING_ID_COLUMN_NAME + " = '')");
+		if (selfCanonicalOnly)
+			where.append(" AND (data." + STRING_ID_HASH_COLUMN_NAME + " = data." + CANONICAL_STRING_ID_HASH_COLUMN_NAME + " OR data." + CANONICAL_STRING_ID_COLUMN_NAME + " = '')");
 		
 		//	assemble query
 		String query;
@@ -2431,17 +2432,17 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	}
 	
 	/* (non-Javadoc)
-	 * @see de.uka.ipd.idaho.onn.stringPool.StringPoolClient#findStrings(java.lang.String[], boolean, java.lang.String, java.lang.String, int)
+	 * @see de.uka.ipd.idaho.onn.stringPool.StringPoolClient#findStrings(java.lang.String[], boolean, java.lang.String, java.lang.String, int, boolean)
 	 */
-	public PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, int limit) {
-		return this.findStrings(textPredicates, disjunctive, type, user, false, limit);
+	public PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, int limit, boolean selfCanonicalOnly) {
+		return this.findStrings(textPredicates, disjunctive, type, user, false, limit, selfCanonicalOnly);
 	}
 	
 	/* (non-Javadoc)
-	 * @see de.uka.ipd.idaho.onn.stringPool.StringPoolClient#findStrings(java.lang.String[], boolean, java.lang.String, java.lang.String, boolean, int)
+	 * @see de.uka.ipd.idaho.onn.stringPool.StringPoolClient#findStrings(java.lang.String[], boolean, java.lang.String, java.lang.String, boolean, int, boolean)
 	 */
-	public PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, boolean concise, int limit) {
-		return this.findStrings(textPredicates, disjunctive, type, user, concise, limit, null);
+	public PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, boolean concise, int limit, boolean selfCanonicalOnly) {
+		return this.findStrings(textPredicates, disjunctive, type, user, concise, limit, selfCanonicalOnly, null);
 	}
 	
 	/**
@@ -2453,11 +2454,12 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	 * @param user the name of the user to contribute or last update the strings
 	 * @param concise obtain a concise result, i.e., without parses?
 	 * @param limit the maximum number of strings to include in the result (0 means no limit)
+	 * @param selfCanonicalOnly filter out strings linked to others?
 	 * @param detailPredicates the predicates to match against a sub class
 	 *            specific index, given in a properties object
 	 * @return an iterator over the strings matching the query
 	 */
-	protected PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, final boolean concise, int limit, Properties detailPredicates) {
+	protected PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, final boolean concise, int limit, boolean selfCanonicalOnly, Properties detailPredicates) {
 		if (((textPredicates == null) || (textPredicates.length == 0)) && (type == null) && (user == null) && ((detailPredicates == null) || detailPredicates.isEmpty()))
 			return new ExceptionPSI(new IOException("Empty query"));
 		try {
@@ -2471,7 +2473,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 					detailPredicates = new Properties();
 				detailPredicates.setProperty(USER_PARAMETER, user);
 			}
-			InternalPooledStringIterator ipsi = this.findInternalStrings(textPredicates, disjunctive, limit, detailPredicates);
+			InternalPooledStringIterator ipsi = this.findInternalStrings(textPredicates, disjunctive, limit, selfCanonicalOnly, detailPredicates);
 			System.out.println("StringPoolServlet: direct search complete");
 			return new PooledStringIteratorLC(ipsi, false, concise);
 		}

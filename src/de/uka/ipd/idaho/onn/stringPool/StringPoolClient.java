@@ -317,9 +317,10 @@ public interface StringPoolClient {
 	 * @param type the type of strings to search
 	 * @param user the name of the user to contribute or last update the strings
 	 * @param limit the maximum number of strings to include in the result (0 means no limit)
+	 * @param selfCanonicalOnly filter out strings linked to others?
 	 * @return an iterator over the strings matching the query
 	 */
-	public abstract PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, int limit);
+	public abstract PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, int limit, boolean selfCanonicalOnly);
 	
 	/**
 	 * Find strings using full text search.
@@ -329,9 +330,10 @@ public interface StringPoolClient {
 	 * @param user the name of the user to contribute or last update the strings
 	 * @param concise obtain a concise result, i.e., without parses?
 	 * @param limit the maximum number of strings to include in the result (0 means no limit)
+	 * @param selfCanonicalOnly filter out strings linked to others?
 	 * @return an iterator over the strings matching the query
 	 */
-	public abstract PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, boolean concise, int limit);
+	public abstract PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, boolean concise, int limit, boolean selfCanonicalOnly);
 	
 	/**
 	 * Retrieve the strings updated since a given UTC timestamp.
