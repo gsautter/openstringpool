@@ -10,3 +10,6 @@ domainName = "<yourStringPoolDomainName>";
 
 // Stylesheet file required for admin page
 cssNames = "onnNodeAdminPage.3.css";
+
+// administration base page
+basePage = "onnNodeAdminPage.html";

@@ -1,4 +1,4 @@
-/* RefBank, the distributed platform for biliographic references.
+/* RefBank, the distributed platform for bibliographic references.
  * Copyright (C) 2011-2013 ViBRANT (FP7/2007-2013, GA 261532), by D. King & G. Sautter
  * 
  * This program is free software; you can redistribute it and/or
@@ -103,30 +103,42 @@ public class StringPoolAppServlet extends HtmlServlet implements StringPoolConst
 	}
 	
 	/**
-	 * This implementation loads the URL of the backing String Pool node and
-	 * initializes synchronization, so sub classes overwriting this method have
-	 * to make the super call.
+	 * This implementation reads synchronization history, so sub classes
+	 * overwriting this method have to make the super call.
 	 * @see de.uka.ipd.idaho.easyIO.web.HtmlServlet#doInit()
 	 */
 	protected void doInit() throws ServletException {
 		super.doInit();
 		
-		//	get access to backing string pool node
-		this.stringPoolNodeUrl = this.getSetting("stringPoolNodeUrl");
-		if (this.stringPoolNodeUrl == null)
-			throw new ServletException("Invalid string pool node URL.");
-		this.stringPoolNodeName = this.getSetting("stringPoolNodeName");
-		
-		//	load lookup interval and last lookup
-		try {
-			this.lookupInterval = Integer.parseInt(this.getSetting("lookupInterval", ("" + this.lookupInterval)));
-		} catch (NumberFormatException nfe) {}
+		//	load last lookup
 		try {
 			this.lastLookup = Long.parseLong(this.getSetting("lastLookup", ("" + this.lastLookup)));
 		} catch (NumberFormatException nfe) {}
+	}
+	
+	/**
+	 * This implementation loads the URL and name of the backing String Pool
+	 * node, reads the update interval, and initializes synchronization. Thus,
+	 * sub classes overwriting this method have to make the super call.
+	 * @see de.uka.ipd.idaho.easyIO.web.HtmlServlet#reInit()
+	 */
+	protected void reInit() throws ServletException {
+		super.reInit();
 		
-		//	start update fetcher
-		if (this.fetchUpdates()) {
+		//	get access to backing string pool node
+		this.stringPoolNodeName = this.getSetting("stringPoolNodeName");
+		this.stringPoolNodeUrl = this.getSetting("stringPoolNodeUrl");
+		if (this.stringPoolNodeUrl == null)
+			throw new ServletException("Invalid string pool node URL.");
+		this.spc = null;
+		
+		//	load lookup interval
+		try {
+			this.lookupInterval = Integer.parseInt(this.getSetting("lookupInterval", ("" + this.lookupInterval)));
+		} catch (NumberFormatException nfe) {}
+		
+		//	start update fetcher if not done yet
+		if (this.fetchUpdates() && (this.updateFetcherService == null)) {
 			this.updateFetcherService = new EventFetcherThread();
 			synchronized (this.updateFetcherService) {
 				this.updateFetcherService.start();

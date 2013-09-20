@@ -1,4 +1,4 @@
-/* RefBank, the distributed platform for biliographic references.
+/* RefBank, the distributed platform for bibliographic references.
  * Copyright (C) 2011-2013 ViBRANT (FP7/2007-2013, GA 261532), by D. King & G. Sautter
  * 
  * This program is free software; you can redistribute it and/or
@@ -42,6 +42,7 @@ import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 
 import de.uka.ipd.idaho.easyIO.settings.Settings;
+import de.uka.ipd.idaho.easyIO.util.RandomByteSource;
 import de.uka.ipd.idaho.easyIO.web.HtmlServlet;
 import de.uka.ipd.idaho.htmlXmlUtil.TokenReceiver;
 import de.uka.ipd.idaho.htmlXmlUtil.TreeNodeAttributeSet;
@@ -78,12 +79,13 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 	private static final String SET_ACCESS_URL_OPERATION = "setAccessUrl";
 	private static final String SET_PASSCODE_OPERATION = "setPasscode";
 	private static final String PING_OPERATION = "ping";
+	private static final String RE_INITIALIZE_OPERATION = "reInit";
 	private static final String RESET_REPLICATION_OPERATION = "resetReplication";
 	
 	protected String domainName;
 	protected String accessUrl;
 	
-	private String passcode;
+	private String passcode = RandomByteSource.getGUID(); // initialize to random non-null value, locking access if config is faulty
 	
 	private TreeMap nodes = new TreeMap();
 	private EventFetcherThread updateFetcherService = null;
@@ -555,6 +557,7 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 			else {
 				this.setSetting("adminPasscode", newPasscode1);
 				this.passcode = newPasscode1;
+				this.storeConfig();
 				operationResult = "Passcode set successfully.";
 			}
 		}
@@ -595,6 +598,33 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 				else {
 					NAR nar = this.addNodes(rNodes);
 					operationResult = ("Imported " + nar.newNodes + " new nodes, updated " + nar.updatedNodes + " ones.");
+				}
+			}
+		}
+		
+		//	re-initialize some servlet or whole node
+		else if (RE_INITIALIZE_OPERATION.equals(operation)) {
+			String reInitName = request.getParameter(NAME_PARAMETER);
+			if ("all".equals(reInitName)) {
+				operationName = "Re-initialize Node";
+				try {
+					this.webAppHost.reInitialize();
+					operationResult = "Node re-initialized successfully.";
+				}
+				catch (Exception e) {
+					e.printStackTrace(System.out);
+					operationError = ("Error re-initializing node: " + e.getMessage());
+				}
+			}
+			else {
+				operationName = "Re-initialize Servlet";
+				try {
+					this.webAppHost.reInitialize(reInitName);
+					operationResult = ("Servlet '" + reInitName + "' re-initialized successfully.");
+				}
+				catch (Exception e) {
+					e.printStackTrace(System.out);
+					operationError = ("Error re-initializing servlet '" + reInitName + "': " + e.getMessage());
 				}
 			}
 		}
@@ -641,7 +671,7 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 				this.writeLine("</form>");
 			}
 		};
-		this.sendHtmlPage("onnNodeAdminPage.html", loginPageBuilder);
+		this.sendHtmlPage(loginPageBuilder);
 	}
 	
 	private void sendAdminPage(HttpServletRequest request, HttpServletResponse response, final String opName, final String opResult, final String opError) throws IOException {
@@ -741,6 +771,13 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 				this.writeLine("  submitForm.submit();");
 				this.writeLine("}");
 				
+				this.writeLine("function submitReInit(reInitName) {");
+				this.writeLine("  operation.value = '" + RE_INITIALIZE_OPERATION + "';");
+				this.writeLine("  var n = addInput('" + NAME_PARAMETER + "');");
+				this.writeLine("  n.value = reInitName;");
+				this.writeLine("  submitForm.submit();");
+				this.writeLine("}");
+				
 				this.writeLine("function addInput(name) {");
 				this.writeLine("  var i = document.createElement('input');");
 				this.writeLine("  i.name = name;");
@@ -763,7 +800,6 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 			
 			private void includeBody() throws IOException {
 				this.writeLine("<form style=\"display: 'none';\" action=\"" + this.request.getContextPath() + this.request.getServletPath() + "/" + ADMIN_ACTION_NAME + "\" method=\"POST\" id=\"submitForm\">");
-				this.writeLine("<input type=\"hidden\" name=\"" + ACTION_PARAMETER + "\" value=\"" + ADMIN_ACTION_NAME + "\" />");
 				this.writeLine("<input type=\"hidden\" name=\"" + OPERATION_PARAMETER + "\" value=\"\" id=\"operation\" />");
 				this.writeLine("</form>");
 				
@@ -908,10 +944,38 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 				this.writeLine("</td>");
 				this.writeLine("</tr>");
 				
+				//	add re-initializer table
+				String[] servletNames = webAppHost.getReInitializableServletNames();
+				this.writeLine("<tr class=\"mainTableBody\">");
+				this.writeLine("<td class=\"mainTableCell\" colspan=\"2\">");
+				
+				this.writeLine("<table class=\"nodesTable\" id=\"reInitTable\">");
+				this.writeLine("<tr class=\"nodesTableHead\">");
+				this.writeLine("<td class=\"nodesTableCell\" colspan=\"2\"><b>Re-Initialize Node or Inidvidual Servlets</b></td>");
+				this.writeLine("</tr>");
+				for (int s = 0; s < servletNames.length; s++) {
+					this.writeLine("<tr class=\"nodesTableBody\">");
+					this.writeLine("<td class=\"nodesTableCell\">Re-initialize '" + servletNames[s] + "'</td>");
+					this.writeLine("</tr>");
+					this.writeLine("<tr class=\"nodesTableBody\">");
+					this.writeLine("<td class=\"nodesTableCell\"><input type=\"button\" class=\"button\" onclick=\"submitReInit('" + servletNames[s] + "');return false;\" value=\"Re-Initialize\" /></td>");
+					this.writeLine("</tr>");
+				}
+				this.writeLine("<tr class=\"nodesTableBody\">");
+				this.writeLine("<td class=\"nodesTableCell\">Re-initialize Node</td>");
+				this.writeLine("</tr>");
+				this.writeLine("<tr class=\"nodesTableBody\">");
+				this.writeLine("<td class=\"nodesTableCell\"><input type=\"button\" class=\"button\" onclick=\"submitReInit('all');return false;\" value=\"Re-Initialize\" /></td>");
+				this.writeLine("</tr>");
+				this.writeLine("</table>");
+				
+				this.writeLine("</td>");
+				this.writeLine("</tr>");
+				
 				this.writeLine("</table>");
 			}
 		};
-		this.sendHtmlPage("onnNodeAdminPage.html", adminPageBuilder);
+		this.sendHtmlPage(adminPageBuilder);
 	}
 	private static final DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss 'GMT'Z", Locale.US);
 	
