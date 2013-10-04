@@ -11,7 +11,7 @@ OnnServlet servlet (/StringPool/sp):
             response (MIME type text/xml, encoding UTF-8):
 
             <nodes>
-              <node name="name of StringPool node" accessUrl="prefered access URL of node" />
+              <node name="name of StringPool node" accessUrl="preferred access URL of node" />
               <node ... />
             </nodes>
 
@@ -26,10 +26,10 @@ OnnServlet servlet (/StringPool/sp):
             response (MIME type text/xml, encoding UTF-8):
 
             <nodes>
-              <node name=&qout;<name of OnnServlet node>&qout; accessUrl="prefered access URL of node" />
+              <node name=&qout;<name of OnnServlet node>&qout; accessUrl="preferred access URL of node" />
             </nodes>
 
-    POST: requests from OnnServlet adminstration HTML page, or infrastructure replication:
+    POST: requests from OnnServlet administration HTML page, or infrastructure replication:
 
         /StringPool/sp/admin: process input from the OnnServlet node administration HTML page (used in browser, not part of API)
 
@@ -38,7 +38,7 @@ OnnServlet servlet (/StringPool/sp):
             response (MIME type text/xml, encoding UTF-8):
 
             <nodes>
-              <node name="name of OnnServlet node" accessUrl="prefered access URL of node" />
+              <node name="name of OnnServlet node" accessUrl="preferred access URL of node" />
               <node ... />
             </nodes>
 
@@ -53,17 +53,17 @@ OnnServlet servlet (/StringPool/sp):
             response (MIME type text/xml, encoding UTF-8):
 
             <nodes>
-              <node name="name of OnnServlet node" accessUrl="prefered access URL of node" />
+              <node name="name of OnnServlet node" accessUrl="preferred access URL of node" />
             </nodes>
 
         /StringPool/sp/introduce: introduce a new OnnServlet to this one, retrieve list of other known OnnServlet
             request body (parameters):
                 name: the name of the OnnServlet introducing itself
-                accessUrl: the prefered access URL of the OnnServlet introducing itself
+                accessUrl: the preferred access URL of the OnnServlet introducing itself
             response (MIME type text/xml, encoding UTF-8):
 
             <nodes>
-              <node name="name of OnnServlet node" accessUrl="prefered access URL of node" />
+              <node name="name of OnnServlet node" accessUrl="preferred access URL of node" />
               <node ... />
             </nodes>
 
@@ -77,7 +77,7 @@ StringPoolServlet servlet (extends OnnServlet) (/StringPool/sp):
             response: compact feed of strings updated since the specified timestamp (MIME type text/xml, encoding UTF-8)
 
             <stringSet>
-              <string id="reference ID" canonicalId="ID of canonical string" deleted="deleted flag, true or false" createTime="UTC timestamp string was first added to StringPool" updateTime="UTC timestamp string was last updated" localUpdateTime="UTC timestamp string was last updated on this StringPool node" parseChecksum="MD5 hash of parsed version, if available" />
+              <string id="string ID" canonicalId="ID of canonical string" deleted="deleted flag, true or false" createTime="UTC timestamp string was first added to StringPool" updateTime="UTC timestamp string was last updated" localUpdateTime="UTC timestamp string was last updated on this StringPool node" parseChecksum="MD5 hash of parsed version, if available" />
               <string ... />
             </stringSet>
 
@@ -86,14 +86,22 @@ StringPoolServlet servlet (extends OnnServlet) (/StringPool/sp):
                 top: number of strings to include in the feed (defaults to 100 if not specified)
             response: an RSS feed announcing the latest additions (MIME type application/rss+xml, encoding UTF-8)
 
+        action=count: retrieve the number of strings stored in the node
+            additional parameters:
+                since: the UTC timestamp since which to count the strings (optional, defaults to 0)
+                format: the format to represent the response (optional, defaults to the native XML representation if omitted)
+            response: the number of strings stored in the node (MIME type text/xml, encoding UTF-8)
+
+            <stringSet count="number of strings" since="argument since" />
+
         action=get: resolve StringPool internal identifiers
             additional parameters:
                 id: the identifier(s) to resolve, can be multi-valued
                 format: the format to represent the parsed versions of strings in (optional, defaults to the native XML representation if omitted)
-            response: the string(s) with the speciefied identifier(s) (MIME type text/xml, encoding UTF-8)
+            response: the string(s) with the specified identifier(s) (MIME type text/xml, encoding UTF-8)
 
             <stringSet>
-              <string id="reference ID" canonicalId="ID of canonical reference" deleted="deleted flag, true or false" createTime="UTC timestamp reference was first added to StringPool" createUser="name of the user to first add reference to StringPool" createDomain="name of StringPool node reference was first added to" updateTime="UTC timestamp reference was last updated" updateUser="name of the user to last update reference" updateDomain="name of StringPool node reference was last updated at">
+              <string id="string ID" canonicalId="ID of canonical string" deleted="deleted flag, true or false" createTime="UTC timestamp string was first added to StringPool" createUser="name of the user to first add string to StringPool" createDomain="name of StringPool node string was first added to" updateTime="UTC timestamp string was last updated" updateUser="name of the user to last update string" updateDomain="name of StringPool node string was last updated at">
                 <stringPlain><plain string></stringPlain>
                 <stringParsed><parsed version of string (if available), as XML or in format specified by format parameter></stringParsed>
               </string>
@@ -106,21 +114,21 @@ StringPoolServlet servlet (extends OnnServlet) (/StringPool/sp):
                 combine: or or and, controls if multiple full text queries are combined conjunctively (the default) or disjunctively
                 type: type of string, only finds string with parsed version available
                 user: contributing user
-                format=concise: exclude parsed verion of strings from response
-                format: the name of the format for representing the parsed verion of the strings (defaults to the native XML if not specified)
+                format=concise: exclude parsed version of strings from response
+                format: the name of the format for representing the parsed version of the strings (defaults to the native XML if not specified)
                 limit: the maximum number of strings to include in the search result (0, the default, means no limit)
                 sco: set to sco to restrict search results to strings not marked as duplicates of others
-            response: the reference matching the specified search criteria (MIME type text/xml, encoding UTF-8)
+            response: the string matching the specified search criteria (MIME type text/xml, encoding UTF-8)
 
             <stringSet>
-              <string id="reference ID" canonicalId="ID of canonical string" deleted="deleted flag, true or false" createTime="UTC timestamp reference was first added to StringPool" createUser="name of the user to first add reference to StringPool" createDomain="name of StringPool node reference was first added to" updateTime="UTC timestamp reference was last updated" updateUser="name of the user to last update reference" updateDomain="name of StringPool node reference was last updated at" parseChecksum="MD5 hash of parsed version, if available and format set to concise">
+              <string id="string ID" canonicalId="ID of canonical string" deleted="deleted flag, true or false" createTime="UTC timestamp string was first added to StringPool" createUser="name of the user to first add string to StringPool" createDomain="name of StringPool node string was first added to" updateTime="UTC timestamp string was last updated" updateUser="name of the user to last update string" updateDomain="name of StringPool node string was last updated at" parseChecksum="MD5 hash of parsed version, if available and format set to concise">
                 <stringPlain><plain string></stringPlain>
                 <stringParsed><parsed version of string (if available), as XML or in format specified by format parameter></stringParsed>
               </string>
               <string ...>...</string>
             </stringSet>
 
-    POST: requests from StringPool node adminstration HTML page, infrastructure replication, or meta data updates for existing references:
+    POST: requests from StringPool node administration HTML page, infrastructure replication, or meta data updates for existing strings:
 
         /StringPool/sp/update: for deleting or un-deleting existing strings or updating canonical string ID
             request headers to set:
@@ -128,13 +136,13 @@ StringPoolServlet servlet (extends OnnServlet) (/StringPool/sp):
             request body:
 
             <stringSet>
-              <string id="reference ID" canonicalId="ID of canonical string to set" deleted="deleted flag to set, true or false"/>
+              <string id="string ID" canonicalId="ID of canonical string to set" deleted="deleted flag to set, true or false"/>
             </stringSet>
 
             response (MIME type text/xml, encoding UTF-8):
 
             <stringSet>
-              <string id="reference ID" canonicalId="ID of canonical string" deleted="deleted flag, true or false" createTime="UTC timestamp string was first added to StringPool" createUser="name of the user to first add string to StringPool" createDomain="name of StringPool node string was first added to" updateTime="UTC timestamp string was last updated" updateUser="name of the user to last update string" updateDomain="name of StringPool node string was last updated at" parseChecksum="MD5 hash of parsed version, if available">
+              <string id="string ID" canonicalId="ID of canonical string" deleted="deleted flag, true or false" createTime="UTC timestamp string was first added to StringPool" createUser="name of the user to first add string to StringPool" createDomain="name of StringPool node string was first added to" updateTime="UTC timestamp string was last updated" updateUser="name of the user to last update string" updateDomain="name of StringPool node string was last updated at" parseChecksum="MD5 hash of parsed version, if available">
                 <stringPlain><plain string></stringPlain>
               </string>
             </stringSet>
@@ -156,10 +164,10 @@ StringPoolServlet servlet (extends OnnServlet) (/StringPool/sp):
               <string>...</string>
             </stringSet>
 
-        response: update statistice (MIME type text/xml, encoding UTF-8), in particular the uploaded or otherwise updated strings, with attributes indicating whether they were updated or alltogether newly added to the open string pool:
+        response: update statistics (MIME type text/xml, encoding UTF-8), in particular the uploaded or otherwise updated strings, with attributes indicating whether they were updated or alltogether newly added to the open string pool:
 
         <stringSet created="number of strings newly added" updated="number of strings updated, less newly created ones">
-          <string id="reference ID" canonicalId="ID of canonical string" deleted="deleted flag, true or false" createTime="UTC timestamp string was first added to StringPool" updateTime="UTC timestamp string was last updated" parseChecksum="MD5 hash of parsed version, if available" parseError="explanation why parsed version was rejected, if any" created="true or false, indicating whether string was newly added to StringPool" updated="true or false, indicating whether string existed and was updated">
+          <string id="string ID" canonicalId="ID of canonical string" deleted="deleted flag, true or false" createTime="UTC timestamp string was first added to StringPool" updateTime="UTC timestamp string was last updated" parseChecksum="MD5 hash of parsed version, if available" parseError="explanation why parsed version was rejected, if any" created="true or false, indicating whether string was newly added to StringPool" updated="true or false, indicating whether string existed and was updated">
             <stringPlain><plain string, as stored in StringPool></stringPlain>
           </string>
           <string ...>...</string>

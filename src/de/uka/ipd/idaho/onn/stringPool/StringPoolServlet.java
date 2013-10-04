@@ -111,7 +111,6 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	private static final int ID_VALUE_COLUMN_LENGTH = 188; // fills up records to 256 bytes
 	
 	private static final String STRING_TEXT_COLUMN_NAME = "String";
-//	private static final int STRING_TEXT_COLUMN_LENGTH = 648;
 	private static final int STRING_TEXT_COLUMN_LENGTH = 1672; // fills up records to 2048 bytes
 	
 	//	index table
@@ -554,6 +553,10 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		else if (FIND_ACTION_NAME.equals(action))
 			this.doFindStrings(request, response);
 		
+		//	get number of strings
+		else if (COUNT_ACTION_NAME.equals(action))
+			this.doCount(request, response);
+		
 		//	other action, to be handled by super class
 		else super.doGet(request, response);
 	}
@@ -721,6 +724,46 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		finally {
 			strings.close();
 		}
+	}
+	
+	private void doCount(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		long since;
+		String sinceString = request.getParameter(SINCE_ATTRIBUTE);
+		if (sinceString == null)
+			since = 0;
+		else try {
+			since = parseTime(sinceString);
+		}
+		catch (NumberFormatException nfe) {
+			response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid time limit.");
+			return;
+		}
+		
+		int count = this.countInternal(since);
+		
+		String format = request.getParameter(FORMAT_PARAMETER);
+		Transformer formatter = null;
+		if (format != null) try {
+			formatter = XsltUtils.getTransformer(new File(this.dataFolder, format), !"force".equals(request.getParameter("formatCache")));
+		}
+		catch (IOException ioe) {
+			response.sendError(HttpServletResponse.SC_BAD_REQUEST, ("Invalid format: " + format));
+			return;
+		}
+		
+		response.setCharacterEncoding(ENCODING);
+		response.setContentType("text/xml");
+		BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(response.getOutputStream(), ENCODING));
+		if (formatter != null)
+			bw = new BufferedWriter(XsltUtils.wrap(bw, formatter));
+		bw.write("<" + this.stringSetNodeType);
+		bw.write(this.xmlNamespaceAttribute);
+		bw.write(" " + COUNT_ATTRIBUTE + "=\"" + count + "\"");
+		if (since > 0)
+			bw.write(" " + SINCE_ATTRIBUTE + "=\"" + TIMESTAMP_DATE_FORMAT.format(new Date(since)) + "\"");
+		bw.write("/>");
+		bw.flush();
+		bw.close();
 	}
 	
 	/**
@@ -1845,6 +1888,30 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		return new SqlParsedStringIterator(sqr, 'R');
 	}
 	
+	private int countInternal(long since) throws IOException {
+		String query = "SELECT count(*)" +   
+				" FROM " + this.parsedStringTableName +
+				((since < 1) ? "" : (" WHERE " + CREATE_TIME_COLUMN_NAME + " > " + since)) +
+				";";
+		
+		SqlQueryResult sqr = null;
+		try {
+			sqr = this.io.executeSelectQuery(query);
+			if (sqr.next())
+				return Integer.parseInt(sqr.getString(0));
+			else return 0;
+		}
+		catch (SQLException sqle) {
+			System.out.println("ParsedStringPool: " + sqle.getClass().getName() + " (" + sqle.getMessage() + ") while getting string count.");
+			System.out.println("  query was " + query);
+			return 0;
+		}
+		finally {
+			if (sqr != null)
+				sqr.close();
+		}
+	}
+	
 	private static LinkedList checksumDigesters = new LinkedList();
 	private static MessageDigest getMessageDigest() throws IOException {
 		synchronized (checksumDigesters) {
@@ -2492,6 +2559,18 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		}
 		catch (IOException ioe) {
 			return new ExceptionPSI(ioe);
+		}
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.onn.stringPool.StringPoolClient#getStringCount(long)
+	 */
+	public int getStringCount(long since) {
+		try {
+			return this.countInternal(since);
+		}
+		catch (IOException ioe) {
+			return 0;
 		}
 	}
 	

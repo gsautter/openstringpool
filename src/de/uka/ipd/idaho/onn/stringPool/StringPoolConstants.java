@@ -33,6 +33,9 @@ public interface StringPoolConstants extends OnnConstants {
 	public static final String STRING_SET_NODE_TYPE = (SP_XML_NAMESPACE_PREFIX + "stringSet");
 	public static final String UPDATED_SINCE_ATTRIBUTE = "updatedSince";
 	
+	public static final String COUNT_ATTRIBUTE = "count";
+	public static final String SINCE_ATTRIBUTE = "since";
+	
 	public static final String STRING_NODE_TYPE = (SP_XML_NAMESPACE_PREFIX + "string");
 	public static final String STRING_ID_ATTRIBUTE = "id";
 	public static final String CANONICAL_STRING_ID_ATTRIBUTE = "canonicalId";
@@ -60,6 +63,7 @@ public interface StringPoolConstants extends OnnConstants {
 	public static final String FEED_ACTION_NAME = "feed";
 	public static final String RSS_FEED_ACTION_NAME = "rss";
 	public static final String GET_ACTION_NAME = "get";
+	public static final String COUNT_ACTION_NAME = "count";
 	public static final String FIND_ACTION_NAME = "find";
 	public static final String UPDATE_ACTION_NAME = "update";
 	

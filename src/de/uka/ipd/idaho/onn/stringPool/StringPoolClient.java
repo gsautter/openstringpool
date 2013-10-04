@@ -94,7 +94,7 @@ public interface StringPoolClient {
 		/**
 		 * Retrieve a possible consistency error of the parsed version of the
 		 * string. This method can return a non-null result only if the
-		 * object originates from an invokation of either one of the
+		 * object originates from an invocation of either one of the
 		 * updateString() and updateStrings() methods.
 		 * @return the consistency error in the parsed string, if any
 		 */
@@ -165,7 +165,7 @@ public interface StringPoolClient {
 		/**
 		 * Check whether the string represented by this object was newly
 		 * created. This method can only return true in the object results from
-		 * an invokation of one of the updateString() and updateStrings()
+		 * an invocation of one of the updateString() and updateStrings()
 		 * methods; otherwise, it always returns false.
 		 * @return true if the string was created, false otherwise
 		 */
@@ -174,7 +174,7 @@ public interface StringPoolClient {
 		/**
 		 * Check whether the string represented by this object was updated.
 		 * This method can only return true in the object results from an
-		 * invokation of one of the updateString() and updateStrings()
+		 * Invocation of one of the updateString() and updateStrings()
 		 * methods; otherwise, it always returns false.
 		 * @return true if the string was updated, false otherwise
 		 */
@@ -183,7 +183,7 @@ public interface StringPoolClient {
 		/**
 		 * Check whether or not the string represented by this object is flagged
 		 * as deleted. This method can only return true in the object results
-		 * from an invokation of one of the getString(), getStrings(),
+		 * from an invocation of one of the getString(), getStrings(),
 		 * findStrings(), and setDeleted() methods; otherwise, it always returns
 		 * false.
 		 * @return true if the string is flagged as deleted, false otherwise
@@ -239,7 +239,7 @@ public interface StringPoolClient {
 		
 		/**
 		 * Retrieve the next string. This method only returns a string
-		 * after a preceeding invokation of the hasNextString() method. If
+		 * after a preceding invocation of the hasNextString() method. If
 		 * the latter method returns false, the behavior of this method is
 		 * arbitrary. The attributes set with the string objects this method
 		 * returns depend on the method the iterator was obtained from; please
@@ -342,6 +342,13 @@ public interface StringPoolClient {
 	 *         timestamp
 	 */
 	public abstract PooledStringIterator getStringsUpdatedSince(long updatedSince);
+	
+	/**
+	 * Retrieve the number of strings newly added since a given UTC timestamp.
+	 * @param since the timestamp
+	 * @return the number of strings
+	 */
+	public abstract int getStringCount(long since);
 	
 	/**
 	 * Upload a plain string without a parsed version.

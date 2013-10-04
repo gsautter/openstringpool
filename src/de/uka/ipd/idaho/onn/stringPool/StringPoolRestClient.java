@@ -425,7 +425,6 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 			private PooledStringRC ps = null;
 			public void close() throws IOException {}
 			public void storeToken(String token, int treeDepth) throws IOException {
-//				System.out.println("REST CLIENT GOT TOKEN: " + token);
 				if (xmlGrammar.isTag(token)) {
 					String type = xmlGrammar.getType(token);
 					type = type.substring(type.indexOf(':') + 1);
@@ -502,7 +501,6 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 			}
 		});
 		r.close();
-//		System.out.println("StringPoolRestClient: " + stringList.size() + " strings received");
 		return new ListPSI(stringList);
 	}
 	
@@ -516,6 +514,32 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 		}
 		catch (IOException ioe) {
 			return new ExceptionPSI(ioe);
+		}
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.onn.stringPool.StringPoolClient#getStringCount(long)
+	 */
+	public int getStringCount(long since) {
+		try {
+			URL countUrl = new URL(this.baseUrl + "?" + ACTION_PARAMETER + "=" + COUNT_ACTION_NAME + ((since < 1) ? "" : ("&" + SINCE_ATTRIBUTE + "=" + URLEncoder.encode(TIMESTAMP_DATE_FORMAT.format(new Date(since)), ENCODING))));
+			final int[] count = {0};
+			xmlParser.stream(new BufferedReader(new InputStreamReader(countUrl.openStream(), ENCODING)), new TokenReceiver() {
+				public void storeToken(String token, int treeDepth) throws IOException {
+					if (xmlGrammar.isTag(token) && !xmlGrammar.isEndTag(token) && stringSetNodeType.equals(xmlGrammar.getType(token))) {
+						TreeNodeAttributeSet tnas = TreeNodeAttributeSet.getTagAttributes(token, xmlGrammar);
+						String countString = tnas.getAttribute(COUNT_ATTRIBUTE);
+						if (countString != null) try {
+							count[0] = Integer.parseInt(countString);
+						} catch (NumberFormatException nfe) {}
+					}
+				}
+				public void close() throws IOException {}
+			});
+			return count[0];
+		}
+		catch (IOException ioe) {
+			return 0;
 		}
 	}
 	
