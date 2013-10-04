@@ -956,15 +956,11 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 				for (int s = 0; s < servletNames.length; s++) {
 					this.writeLine("<tr class=\"nodesTableBody\">");
 					this.writeLine("<td class=\"nodesTableCell\">Re-initialize '" + servletNames[s] + "'</td>");
-					this.writeLine("</tr>");
-					this.writeLine("<tr class=\"nodesTableBody\">");
 					this.writeLine("<td class=\"nodesTableCell\"><input type=\"button\" class=\"button\" onclick=\"submitReInit('" + servletNames[s] + "');return false;\" value=\"Re-Initialize\" /></td>");
 					this.writeLine("</tr>");
 				}
 				this.writeLine("<tr class=\"nodesTableBody\">");
 				this.writeLine("<td class=\"nodesTableCell\">Re-initialize Node</td>");
-				this.writeLine("</tr>");
-				this.writeLine("<tr class=\"nodesTableBody\">");
 				this.writeLine("<td class=\"nodesTableCell\"><input type=\"button\" class=\"button\" onclick=\"submitReInit('all');return false;\" value=\"Re-Initialize\" /></td>");
 				this.writeLine("</tr>");
 				this.writeLine("</table>");
