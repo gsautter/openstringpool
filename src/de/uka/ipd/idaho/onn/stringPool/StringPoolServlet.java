@@ -132,6 +132,15 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	private String parsedStringHistoryTableName = (this.getExternalDataName() + PARSED_STRING_HISTORY_TABLE_NAME_SUFFIX);
 	private String parsedStringIdentifierTableName = (this.getExternalDataName() + PARSED_STRING_IDENTIFIER_TABLE_NAME_SUFFIX);
 	
+	private int apiCallCountTotal = 0;
+	private int apiCallCountFeed = 0;
+	private int apiCallCountRss = 0;
+	private int apiCallCountFind = 0;
+	private int apiCallCountGet = 0;
+	private int apiCallCountUpdate = 0;
+	private int apiCallCountCount = 0;
+	private int apiCallCountStats = 0;
+	
 	/**
 	 * Specify the name to use for the contained data in outside resources like
 	 * databases (table name prefix) or the file system. This default
@@ -139,7 +148,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	 * overwrite this method to specify a less generic name. In fact, sub
 	 * classes are highly recommended to provide a more specific name to prevent
 	 * name collisions, e.g. if multiple sub classes of this class are together
-	 * in a web application or share a database. If an mplementations of this
+	 * in a web application or share a database. If an implementations of this
 	 * method depends on external parameters, these parameters have to be read
 	 * before making the super call to the init() method of this class.
 	 * @return the name to use for the contained data in outside resources
@@ -342,6 +351,16 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		
 		//	activate updates
 		this.doUpdates = true;
+		
+		//	load API call statistics counters
+		this.apiCallCountTotal = Integer.parseInt(this.getSetting("apiCallCountTotal", "0"));
+		this.apiCallCountFeed = Integer.parseInt(this.getSetting("apiCallCountFeed", "0"));
+		this.apiCallCountRss = Integer.parseInt(this.getSetting("apiCallCountRss", "0"));
+		this.apiCallCountFind = Integer.parseInt(this.getSetting("apiCallCountFind", "0"));
+		this.apiCallCountGet = Integer.parseInt(this.getSetting("apiCallCountGet", "0"));
+		this.apiCallCountUpdate = Integer.parseInt(this.getSetting("apiCallCountUpdate", "0"));
+		this.apiCallCountCount = Integer.parseInt(this.getSetting("apiCallCountCount", "0"));
+		this.apiCallCountStats = Integer.parseInt(this.getSetting("apiCallCountStats", "0"));
 	}
 	
 	/**
@@ -364,6 +383,14 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	 */
 	protected void exit() {
 		super.exit();
+		this.setSetting("apiCallCountTotal", ("" + this.apiCallCountTotal));
+		this.setSetting("apiCallCountFeed", ("" + this.apiCallCountFeed));
+		this.setSetting("apiCallCountRss", ("" + this.apiCallCountRss));
+		this.setSetting("apiCallCountFind", ("" + this.apiCallCountFind));
+		this.setSetting("apiCallCountGet", ("" + this.apiCallCountGet));
+		this.setSetting("apiCallCountUpdate", ("" + this.apiCallCountUpdate));
+		this.setSetting("apiCallCountCount", ("" + this.apiCallCountCount));
+		this.setSetting("apiCallCountStats", ("" + this.apiCallCountStats));
 		this.doUpdates = false;
 		this.io.close();
 	}
@@ -556,6 +583,10 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		//	get number of strings
 		else if (COUNT_ACTION_NAME.equals(action))
 			this.doCount(request, response);
+		
+		//	get API call statistics
+		else if (API_STATS_ACTION_NAME.equals(action))
+			this.doApiStats(request, response);
 		
 		//	other action, to be handled by super class
 		else super.doGet(request, response);
@@ -766,6 +797,39 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		bw.close();
 	}
 	
+	private void doApiStats(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+		this.apiCallCountTotal++;
+		this.apiCallCountStats++;
+		
+		String format = request.getParameter(FORMAT_PARAMETER);
+		Transformer formatter = null;
+		if (format != null) try {
+			formatter = XsltUtils.getTransformer(new File(this.dataFolder, format), !"force".equals(request.getParameter("formatCache")));
+		}
+		catch (IOException ioe) {
+			response.sendError(HttpServletResponse.SC_BAD_REQUEST, ("Invalid format: " + format));
+			return;
+		}
+		
+		response.setCharacterEncoding(ENCODING);
+		response.setContentType("text/xml");
+		BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(response.getOutputStream(), ENCODING));
+		if (formatter != null)
+			bw = new BufferedWriter(XsltUtils.wrap(bw, formatter));
+		bw.write("<apiStats");
+		bw.write(" total=\"" + this.apiCallCountTotal + "\"");
+		bw.write(" feed=\"" + this.apiCallCountFeed + "\"");
+		bw.write(" rss=\"" + this.apiCallCountRss + "\"");
+		bw.write(" find=\"" + this.apiCallCountFind + "\"");
+		bw.write(" get=\"" + this.apiCallCountGet + "\"");
+		bw.write(" update=\"" + this.apiCallCountUpdate + "\"");
+		bw.write(" count=\"" + this.apiCallCountCount + "\"");
+		bw.write(" stats=\"" + this.apiCallCountStats + "\"");
+		bw.write("/>");
+		bw.flush();
+		bw.close();
+	}
+	
 	/**
 	 * Extract sub class specific detail predicates from a search query, to be
 	 * matched against the index table. This method is only relevant if the sub
@@ -908,6 +972,9 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	}
 	
 	private InternalPooledString doPlainUpdate(String stringId, String canonicalStringId, boolean deleted, String domain, String user, long updateTime, String updateSource, InternalPooledString localString, String localUpdateSourceDomain) throws IOException {
+		this.apiCallCountTotal++;
+		this.apiCallCountUpdate++;
+		
 		InternalPooledString existingString = localString;
 		if (existingString == null)
 			existingString = this.getInternalString(stringId);
@@ -972,23 +1039,16 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		int updateStringCount = 0;
 		ArrayList stringList = new ArrayList();
 		for (int s = 0; s < strings.length; s++) {
-			if (strings[s].stringPlain == null) {
-//				InternalPooledString string = this.unDeleteString(strings[s], updateSource);
-//				if (string == null)
-//					continue;
-//				stringList.add(string);
-//				updateStringCount++;
-			}
-			else {
-				InternalPooledString string = this.doStringUpdate(strings[s], user, source);
-				if (string == null)
-					continue;
-				stringList.add(string);
-				if ((string.updateTime == string.localUpdateTime) && (requestTime <= string.updateTime)) {
-					 if (string.createTime >= requestTime)
-						 newStringCount++;
-					 else updateStringCount++;
-				}
+			if (strings[s].stringPlain == null)
+				continue;
+			InternalPooledString string = this.doStringUpdate(strings[s], user, source);
+			if (string == null)
+				continue;
+			stringList.add(string);
+			if ((string.updateTime == string.localUpdateTime) && (requestTime <= string.updateTime)) {
+				 if (string.createTime >= requestTime)
+					 newStringCount++;
+				 else updateStringCount++;
 			}
 		}
 		
@@ -1145,6 +1205,9 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	}
 	
 	private InternalPooledString doStringUpdate(InternalPooledString updateString, String user, String updateSource) throws IOException {
+		this.apiCallCountTotal++;
+		this.apiCallCountUpdate++;
+		
 		System.out.println("STRING: " + updateString.stringPlain);
 		
 		//	check if string already exists
@@ -1609,6 +1672,8 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	}
 	
 	private InternalPooledStringIterator getInternalStrings(String[] ids) throws IOException {
+		this.apiCallCountTotal++;
+		this.apiCallCountGet++;
 		if (ids.length == 0)
 			return new InternalPooledStringIterator() {
 				public void close() {}
@@ -1734,6 +1799,9 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	}
 	
 	private InternalPooledStringIterator findInternalStrings(String[] fullTextQueryPredicates, boolean disjunctive, int limit, boolean selfCanonicalOnly, Properties detailPredicates) throws IOException {
+		this.apiCallCountTotal++;
+		this.apiCallCountFind++;
+		
 		StringBuffer where = new StringBuffer(disjunctive ? "(1=0" : "(1=1");
 		if (fullTextQueryPredicates != null)
 			for (int q = 0; q < fullTextQueryPredicates.length; q++) {
@@ -1853,6 +1921,8 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	 * update batches
 	 */
 	private InternalPooledStringIterator getStringFeed(long addedSince) throws IOException {
+		this.apiCallCountTotal++;
+		this.apiCallCountFeed++;
 		String query = "SELECT " + STRING_ID_COLUMN_NAME + ", " + CANONICAL_STRING_ID_COLUMN_NAME + ", " + PARSE_CHECKSUM_COLUMN_NAME + ", " + CREATE_TIME_COLUMN_NAME + ", " + UPDATE_TIME_COLUMN_NAME + ", " + LOCAL_UPDATE_TIME_COLUMN_NAME + ", " + DELETED_COLUMN_NAME + 
 				" FROM " + this.parsedStringTableName +
 				" WHERE " + LOCAL_UPDATE_TIME_COLUMN_NAME + " > " + addedSince + 
@@ -1871,6 +1941,8 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	}
 	
 	private InternalPooledStringIterator getStringRssFeed(int top) throws IOException {
+		this.apiCallCountTotal++;
+		this.apiCallCountRss++;
 		String query = "SELECT " + STRING_ID_COLUMN_NAME + ", " + CREATE_TIME_COLUMN_NAME + ", " + UPDATE_TIME_COLUMN_NAME + ", " + STRING_TEXT_COLUMN_NAME +  
 				" FROM " + this.parsedStringTableName +
 				" ORDER BY " + CREATE_TIME_COLUMN_NAME + " DESC" +
@@ -1889,6 +1961,8 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	}
 	
 	private int countInternal(long since) throws IOException {
+		this.apiCallCountTotal++;
+		this.apiCallCountCount++;
 		String query = "SELECT count(*)" +   
 				" FROM " + this.parsedStringTableName +
 				((since < 1) ? "" : (" WHERE " + CREATE_TIME_COLUMN_NAME + " > " + since)) +
