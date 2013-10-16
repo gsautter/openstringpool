@@ -128,6 +128,13 @@ StringPoolServlet servlet (extends OnnServlet) (/StringPool/sp):
               <string ...>...</string>
             </stringSet>
 
+        action=apiStats: retrieve statistics on the usage of the node, in particular for the data handling actions
+            additional parameters:
+                format: the name of the XSLT stylesheet to use for transforming the result (defaults to the native XML if not specified)
+            response: the API call statistics (MIME type text/xml, encoding UTF-8)
+
+            <apiStats total="total number of API calls" feed="number of calls to feed action" rss="number of calls to RSS feed action" find="number of calls to find action" get="number of calls to get action" update="number of calls to update action" count="number of calls to count action" stats="number of calls to API statistics"/>
+
     POST: requests from StringPool node administration HTML page, infrastructure replication, or meta data updates for existing strings:
 
         /StringPool/sp/update: for deleting or un-deleting existing strings or updating canonical string ID
