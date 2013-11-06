@@ -351,6 +351,14 @@ public interface StringPoolClient {
 	public abstract int getStringCount(long since);
 	
 	/**
+	 * Retrieve the number of self-canonical strings newly added since a given
+	 * UTC timestamp.
+	 * @param since the timestamp
+	 * @return the number of self-canonical strings
+	 */
+	public abstract int getStringClusterCount(long since);
+	
+	/**
 	 * Upload a plain string without a parsed version.
 	 * @param stringPlain the string to upload
 	 * @param user the name of the user contributing the string

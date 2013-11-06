@@ -34,6 +34,7 @@ public interface StringPoolConstants extends OnnConstants {
 	public static final String UPDATED_SINCE_ATTRIBUTE = "updatedSince";
 	
 	public static final String COUNT_ATTRIBUTE = "count";
+	public static final String CLUSTER_COUNT_ATTRIBUTE = "clusterCount";
 	public static final String SINCE_ATTRIBUTE = "since";
 	
 	public static final String STRING_NODE_TYPE = (SP_XML_NAMESPACE_PREFIX + "string");

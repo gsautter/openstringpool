@@ -139,6 +139,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	private int apiCallCountGet = 0;
 	private int apiCallCountUpdate = 0;
 	private int apiCallCountCount = 0;
+	private int apiCallCountClusterCount = 0;
 	private int apiCallCountStats = 0;
 	
 	/**
@@ -360,6 +361,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		this.apiCallCountGet = Integer.parseInt(this.getSetting("apiCallCountGet", "0"));
 		this.apiCallCountUpdate = Integer.parseInt(this.getSetting("apiCallCountUpdate", "0"));
 		this.apiCallCountCount = Integer.parseInt(this.getSetting("apiCallCountCount", "0"));
+		this.apiCallCountClusterCount = Integer.parseInt(this.getSetting("apiCallCountClusterCount", "0"));
 		this.apiCallCountStats = Integer.parseInt(this.getSetting("apiCallCountStats", "0"));
 	}
 	
@@ -390,6 +392,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		this.setSetting("apiCallCountGet", ("" + this.apiCallCountGet));
 		this.setSetting("apiCallCountUpdate", ("" + this.apiCallCountUpdate));
 		this.setSetting("apiCallCountCount", ("" + this.apiCallCountCount));
+		this.setSetting("apiCallCountClusterCount", ("" + this.apiCallCountClusterCount));
 		this.setSetting("apiCallCountStats", ("" + this.apiCallCountStats));
 		this.doUpdates = false;
 		this.io.close();
@@ -771,6 +774,8 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		}
 		
 		int count = this.countInternal(since);
+		int clusterCount = this.clusterCountInternal(since);
+		this.apiCallCountTotal--; // compensate for incrementing in each counting method
 		
 		String format = request.getParameter(FORMAT_PARAMETER);
 		Transformer formatter = null;
@@ -790,6 +795,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		bw.write("<" + this.stringSetNodeType);
 		bw.write(this.xmlNamespaceAttribute);
 		bw.write(" " + COUNT_ATTRIBUTE + "=\"" + count + "\"");
+		bw.write(" " + CLUSTER_COUNT_ATTRIBUTE + "=\"" + clusterCount + "\"");
 		if (since > 0)
 			bw.write(" " + SINCE_ATTRIBUTE + "=\"" + TIMESTAMP_DATE_FORMAT.format(new Date(since)) + "\"");
 		bw.write("/>");
@@ -824,6 +830,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		bw.write(" get=\"" + this.apiCallCountGet + "\"");
 		bw.write(" update=\"" + this.apiCallCountUpdate + "\"");
 		bw.write(" count=\"" + this.apiCallCountCount + "\"");
+		bw.write(" clusters=\"" + this.apiCallCountClusterCount + "\"");
 		bw.write(" stats=\"" + this.apiCallCountStats + "\"");
 		bw.write("/>");
 		bw.flush();
@@ -1823,7 +1830,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			where.append(" AND ((data." + CREATE_USER_ATTRIBUTE + " LIKE '%" + EasyIO.prepareForLIKE(user) + "%') OR (data." + UPDATE_USER_ATTRIBUTE + " LIKE '%" + EasyIO.prepareForLIKE(user) + "%'))");
 		for (Iterator dpit = detailPredicates.keySet().iterator(); dpit.hasNext();) {
 			String detailName = ((String) dpit.next());
-			if (STRING_TYPE_COLUMN_NAME.equals(detailName))
+			if (STRING_TYPE_COLUMN_NAME.equals(detailName) || TYPE_PARAMETER.equals(detailName) || USER_PARAMETER.equals(detailName))
 				continue;
 			String detailValue = detailPredicates.getProperty(detailName);
 			if ((detailValue == null) || (detailValue.length() == 0) || detailValue.matches("[\\s\\%]++"))
@@ -1977,6 +1984,43 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		}
 		catch (SQLException sqle) {
 			System.out.println("ParsedStringPool: " + sqle.getClass().getName() + " (" + sqle.getMessage() + ") while getting string count.");
+			System.out.println("  query was " + query);
+			return 0;
+		}
+		finally {
+			if (sqr != null)
+				sqr.close();
+		}
+	}
+	
+	private int clusterCountInternal(long since) throws IOException {
+		this.apiCallCountTotal++;
+		this.apiCallCountClusterCount++;
+		String query = "SELECT count(*)" +   
+				" FROM " + this.parsedStringTableName +
+				" WHERE (" +
+					"(" +
+						CANONICAL_STRING_ID_HASH_COLUMN_NAME + " = " + STRING_ID_HASH_COLUMN_NAME + 
+						" AND " + 
+						CANONICAL_STRING_ID_COLUMN_NAME + " = " + STRING_ID_COLUMN_NAME +
+					") OR (" +
+						CANONICAL_STRING_ID_HASH_COLUMN_NAME + " = 0" + 
+						" AND " + 
+						CANONICAL_STRING_ID_COLUMN_NAME + " = ''" +
+					")" +
+				")" +
+				((since < 1) ? "" : (" AND " + CREATE_TIME_COLUMN_NAME + " > " + since)) +
+				";";
+		
+		SqlQueryResult sqr = null;
+		try {
+			sqr = this.io.executeSelectQuery(query);
+			if (sqr.next())
+				return Integer.parseInt(sqr.getString(0));
+			else return 0;
+		}
+		catch (SQLException sqle) {
+			System.out.println("ParsedStringPool: " + sqle.getClass().getName() + " (" + sqle.getMessage() + ") while getting string cluster count.");
 			System.out.println("  query was " + query);
 			return 0;
 		}
@@ -2322,7 +2366,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	/**
 	 * Obtain the type of a string from its parsed representation. If the type
 	 * cannot be determined, this method should return null. This default
-	 * implementation simply does return null, sub calsses are welcome to
+	 * implementation simply does return null, sub classes are welcome to
 	 * overwrite it as needed.
 	 * @param stringParsed the parse to retrieve the string type from
 	 * @return the type of the argument string, or null if the type cannot be
@@ -2642,6 +2686,18 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	public int getStringCount(long since) {
 		try {
 			return this.countInternal(since);
+		}
+		catch (IOException ioe) {
+			return 0;
+		}
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.onn.stringPool.StringPoolClient#getStringClusterCount(long)
+	 */
+	public int getStringClusterCount(long since) {
+		try {
+			return this.clusterCountInternal(since);
 		}
 		catch (IOException ioe) {
 			return 0;

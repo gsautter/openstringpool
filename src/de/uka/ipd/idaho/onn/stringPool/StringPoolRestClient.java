@@ -154,12 +154,17 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 	private class ThreadedPSI implements PooledStringIterator {
 		private IOException ioe;
 		private PooledString next;
+		private Thread parser;
 		private Object parserLock = new Object();
 		private ThreadedPSI(final Reader r) {
-			Thread parser = new Thread() {
+			System.out.println("StringPoolRestClient: creating threaded iterator");
+			this.parser = new Thread() {
 				public void run() {
+					System.out.println("StringPoolRestClient: parser thread starting to run");
 					synchronized(parserLock) {
+						System.out.println("StringPoolRestClient: parser thread waking up creator");
 						parserLock.notify();
+						System.out.println("StringPoolRestClient: parser thread creator woken up");
 					}
 					try {
 						xmlParser.stream(r, new TokenReceiver() {
@@ -181,13 +186,18 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 												this.ps.stringParsed = this.stringParsed;
 											}
 											synchronized(parserLock) {
+//												System.out.println("StringPoolRestClient: parser thread got next");
 												next = this.ps;
+												this.ps = null;
+//												System.out.println("StringPoolRestClient: parser thread waking up requester");
 												parserLock.notify();
+//												System.out.println("StringPoolRestClient: parser thread woke up requester");
 												try {
+//													System.out.println("StringPoolRestClient: parser thread going to sleep");
 													parserLock.wait();
+//													System.out.println("StringPoolRestClient: parser thread woken up by requester");
 												} catch (InterruptedException ie) {}
 											}
-											this.ps = null;
 										}
 										else {
 											TreeNodeAttributeSet stringAttributes = TreeNodeAttributeSet.getTagAttributes(token, xmlGrammar);
@@ -208,6 +218,21 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 											this.ps.parseError = stringAttributes.getAttribute(PARSE_ERROR_ATTRIBUTE);
 											this.ps.created = "true".equalsIgnoreCase(stringAttributes.getAttribute(CREATED_ATTRIBUTE));
 											this.ps.updated = "true".equalsIgnoreCase(stringAttributes.getAttribute(UPDATED_ATTRIBUTE));
+											if (xmlGrammar.isSingularTag(token)) {
+												synchronized(parserLock) {
+//													System.out.println("StringPoolRestClient: parser thread got next");
+													next = this.ps;
+													this.ps = null;
+//													System.out.println("StringPoolRestClient: parser thread waking up requester");
+													parserLock.notify();
+//													System.out.println("StringPoolRestClient: parser thread woke up requester");
+													try {
+//														System.out.println("StringPoolRestClient: parser thread going to sleep");
+														parserLock.wait();
+//														System.out.println("StringPoolRestClient: parser thread woken up by requester");
+													} catch (InterruptedException ie) {}
+												}
+											}
 										}
 										this.stringPlainBuffer = null;
 										this.stringPlain = null;
@@ -246,7 +271,10 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 					}
 					finally {
 						synchronized(parserLock) {
+//							System.out.println("StringPoolRestClient: parser thread waking up requester at eand of input");
 							parserLock.notify();
+//							System.out.println("StringPoolRestClient: parser thread woke up requester at end of input");
+							parser = null;
 						}
 						try {
 							r.close();
@@ -257,10 +285,15 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 					}
 				}
 			};
+//			System.out.println("StringPoolRestClient: parser thread created");
 			synchronized(this.parserLock) {
-				parser.start();
+//				System.out.println("StringPoolRestClient: starting parser thread");
+				this.parser.start();
+//				System.out.println("StringPoolRestClient: parser thread started");
 				try {
+//					System.out.println("StringPoolRestClient: waiting for parser thread");
 					this.parserLock.wait();
+//					System.out.println("StringPoolRestClient: parser thread running");
 				} catch (InterruptedException ie) {}
 			}
 		}
@@ -271,9 +304,15 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 			if (this.next != null)
 				return true;
 			synchronized(this.parserLock) {
+				if (parser == null)
+					return false;
+//				System.out.println("StringPoolRestClient: waking up parser thread");
 				this.parserLock.notify();
+//				System.out.println("StringPoolRestClient: parser thread woken up");
 				try {
+//					System.out.println("StringPoolRestClient: waiting on parser thread to produce next");
 					this.parserLock.wait();
+//					System.out.println("StringPoolRestClient: parser thread returned from quest for next");
 				} catch (InterruptedException ie) {}
 				return (this.next != null);
 			}
@@ -416,92 +455,93 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 	}
 	
 	private PooledStringIterator receiveStrings(Reader r) throws IOException {
-		final ArrayList stringList = new ArrayList();
-		xmlParser.stream(r, new TokenReceiver() {
-			private StringBuffer stringPlainBuffer = null;
-			private String stringPlain = null;
-			private StringBuffer stringParsedBuffer = null;
-			private String stringParsed = null;
-			private PooledStringRC ps = null;
-			public void close() throws IOException {}
-			public void storeToken(String token, int treeDepth) throws IOException {
-				if (xmlGrammar.isTag(token)) {
-					String type = xmlGrammar.getType(token);
-					type = type.substring(type.indexOf(':') + 1);
-					boolean isEndTag = xmlGrammar.isEndTag(token);
-					if (stringNodeType.equals(type)) {
-						if (isEndTag) {
-							if (this.ps != null) {
-								this.ps.stringPlain = this.stringPlain;
-								this.ps.stringParsed = this.stringParsed;
-								stringList.add(this.ps);
-							}
-							this.ps = null;
-						}
-						else {
-							TreeNodeAttributeSet stringAttributes = TreeNodeAttributeSet.getTagAttributes(token, xmlGrammar);
-							String stringId = stringAttributes.getAttribute(STRING_ID_ATTRIBUTE);
-							if (stringId == null)
-								return;
-							this.ps = new PooledStringRC(stringId);
-							try {
-								this.ps.createTime = parseTime(stringAttributes.getAttribute(CREATE_TIME_ATTRIBUTE, "-1"));
-								this.ps.createDomain = stringAttributes.getAttribute(CREATE_DOMAIN_ATTRIBUTE);
-								this.ps.createUser = stringAttributes.getAttribute(CREATE_USER_ATTRIBUTE);
-								this.ps.updateTime = parseTime(stringAttributes.getAttribute(UPDATE_TIME_ATTRIBUTE, "-1"));
-								this.ps.updateDomain = stringAttributes.getAttribute(UPDATE_DOMAIN_ATTRIBUTE);
-								this.ps.updateUser = stringAttributes.getAttribute(UPDATE_USER_ATTRIBUTE);
-								this.ps.nodeUpdateTime = parseTime(stringAttributes.getAttribute(LOCAL_UPDATE_TIME_ATTRIBUTE, "-1"));
-								this.ps.deleted = "true".equalsIgnoreCase(stringAttributes.getAttribute(DELETED_ATTRIBUTE));
-							}
-							catch (NumberFormatException nfe) {
-								System.out.println("Error in timestamps, token is " + token);
-								nfe.printStackTrace(System.out);
-								this.ps = null;
-								return;
-							}
-							this.ps.canonicalId = stringAttributes.getAttribute(CANONICAL_STRING_ID_ATTRIBUTE);
-							this.ps.parseChecksum = stringAttributes.getAttribute(PARSE_CHECKSUM_ATTRIBUTE);
-							this.ps.parseError = stringAttributes.getAttribute(PARSE_ERROR_ATTRIBUTE);
-							this.ps.created = "true".equalsIgnoreCase(stringAttributes.getAttribute(CREATED_ATTRIBUTE));
-							this.ps.updated = "true".equalsIgnoreCase(stringAttributes.getAttribute(UPDATED_ATTRIBUTE));
-							if (xmlGrammar.isSingularTag(token)) {
-								stringList.add(this.ps);
-								this.ps = null;
-							}
-						}
-						this.stringPlainBuffer = null;
-						this.stringPlain = null;
-						this.stringParsedBuffer = null;
-						this.stringParsed = null;
-					}
-					else if (stringPlainNodeType.equals(type)) {
-						if (isEndTag) {
-							if (this.stringPlainBuffer.length() != 0)
-								this.stringPlain = this.stringPlainBuffer.toString();
-							this.stringPlainBuffer = null;
-						}
-						else this.stringPlainBuffer = new StringBuffer();
-					}
-					else if (stringParsedNodeType.equals(type)) {
-						if (isEndTag) {
-							if (this.stringParsedBuffer.length() != 0)
-								this.stringParsed = this.stringParsedBuffer.toString();
-							this.stringParsedBuffer = null;
-						}
-						else this.stringParsedBuffer = new StringBuffer();
-					}
-					else if (this.stringParsedBuffer != null)
-						this.stringParsedBuffer.append(token);
-				}
-				else if (this.stringPlainBuffer != null)
-					this.stringPlainBuffer.append(xmlGrammar.unescape(token));
-				else if (this.stringParsedBuffer != null)
-					this.stringParsedBuffer.append(token.trim());
-			}
-		});
-		r.close();
-		return new ListPSI(stringList);
+		return new ThreadedPSI(r);
+//		final ArrayList stringList = new ArrayList();
+//		xmlParser.stream(r, new TokenReceiver() {
+//			private StringBuffer stringPlainBuffer = null;
+//			private String stringPlain = null;
+//			private StringBuffer stringParsedBuffer = null;
+//			private String stringParsed = null;
+//			private PooledStringRC ps = null;
+//			public void close() throws IOException {}
+//			public void storeToken(String token, int treeDepth) throws IOException {
+//				if (xmlGrammar.isTag(token)) {
+//					String type = xmlGrammar.getType(token);
+//					type = type.substring(type.indexOf(':') + 1);
+//					boolean isEndTag = xmlGrammar.isEndTag(token);
+//					if (stringNodeType.equals(type)) {
+//						if (isEndTag) {
+//							if (this.ps != null) {
+//								this.ps.stringPlain = this.stringPlain;
+//								this.ps.stringParsed = this.stringParsed;
+//								stringList.add(this.ps);
+//							}
+//							this.ps = null;
+//						}
+//						else {
+//							TreeNodeAttributeSet stringAttributes = TreeNodeAttributeSet.getTagAttributes(token, xmlGrammar);
+//							String stringId = stringAttributes.getAttribute(STRING_ID_ATTRIBUTE);
+//							if (stringId == null)
+//								return;
+//							this.ps = new PooledStringRC(stringId);
+//							try {
+//								this.ps.createTime = parseTime(stringAttributes.getAttribute(CREATE_TIME_ATTRIBUTE, "-1"));
+//								this.ps.createDomain = stringAttributes.getAttribute(CREATE_DOMAIN_ATTRIBUTE);
+//								this.ps.createUser = stringAttributes.getAttribute(CREATE_USER_ATTRIBUTE);
+//								this.ps.updateTime = parseTime(stringAttributes.getAttribute(UPDATE_TIME_ATTRIBUTE, "-1"));
+//								this.ps.updateDomain = stringAttributes.getAttribute(UPDATE_DOMAIN_ATTRIBUTE);
+//								this.ps.updateUser = stringAttributes.getAttribute(UPDATE_USER_ATTRIBUTE);
+//								this.ps.nodeUpdateTime = parseTime(stringAttributes.getAttribute(LOCAL_UPDATE_TIME_ATTRIBUTE, "-1"));
+//								this.ps.deleted = "true".equalsIgnoreCase(stringAttributes.getAttribute(DELETED_ATTRIBUTE));
+//							}
+//							catch (NumberFormatException nfe) {
+//								System.out.println("Error in timestamps, token is " + token);
+//								nfe.printStackTrace(System.out);
+//								this.ps = null;
+//								return;
+//							}
+//							this.ps.canonicalId = stringAttributes.getAttribute(CANONICAL_STRING_ID_ATTRIBUTE);
+//							this.ps.parseChecksum = stringAttributes.getAttribute(PARSE_CHECKSUM_ATTRIBUTE);
+//							this.ps.parseError = stringAttributes.getAttribute(PARSE_ERROR_ATTRIBUTE);
+//							this.ps.created = "true".equalsIgnoreCase(stringAttributes.getAttribute(CREATED_ATTRIBUTE));
+//							this.ps.updated = "true".equalsIgnoreCase(stringAttributes.getAttribute(UPDATED_ATTRIBUTE));
+//							if (xmlGrammar.isSingularTag(token)) {
+//								stringList.add(this.ps);
+//								this.ps = null;
+//							}
+//						}
+//						this.stringPlainBuffer = null;
+//						this.stringPlain = null;
+//						this.stringParsedBuffer = null;
+//						this.stringParsed = null;
+//					}
+//					else if (stringPlainNodeType.equals(type)) {
+//						if (isEndTag) {
+//							if (this.stringPlainBuffer.length() != 0)
+//								this.stringPlain = this.stringPlainBuffer.toString();
+//							this.stringPlainBuffer = null;
+//						}
+//						else this.stringPlainBuffer = new StringBuffer();
+//					}
+//					else if (stringParsedNodeType.equals(type)) {
+//						if (isEndTag) {
+//							if (this.stringParsedBuffer.length() != 0)
+//								this.stringParsed = this.stringParsedBuffer.toString();
+//							this.stringParsedBuffer = null;
+//						}
+//						else this.stringParsedBuffer = new StringBuffer();
+//					}
+//					else if (this.stringParsedBuffer != null)
+//						this.stringParsedBuffer.append(token);
+//				}
+//				else if (this.stringPlainBuffer != null)
+//					this.stringPlainBuffer.append(xmlGrammar.unescape(token));
+//				else if (this.stringParsedBuffer != null)
+//					this.stringParsedBuffer.append(token.trim());
+//			}
+//		});
+//		r.close();
+//		return new ListPSI(stringList);
 	}
 	
 	/* (non-Javadoc)
@@ -509,7 +549,7 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 	 */
 	public PooledStringIterator getStringsUpdatedSince(long updatedSince) {
 		try {
-			URL feedUrl = new URL(this.baseUrl + "?" + ACTION_PARAMETER + "=" + FEED_ACTION_NAME + "&" + UPDATED_SINCE_ATTRIBUTE + "=" + URLEncoder.encode(TIMESTAMP_DATE_FORMAT.format(new Date(updatedSince)), ENCODING));
+			URL feedUrl = new URL(this.baseUrl + "?" + ACTION_PARAMETER + "=" + FEED_ACTION_NAME + "&" + UPDATED_SINCE_ATTRIBUTE + "=" + URLEncoder.encode(TIMESTAMP_DATE_FORMAT.format(new Date(Math.max(updatedSince, 1))), ENCODING));
 			return this.receiveStrings(new BufferedReader(new InputStreamReader(feedUrl.openStream(), ENCODING)));
 		}
 		catch (IOException ioe) {
@@ -529,6 +569,32 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 					if (xmlGrammar.isTag(token) && !xmlGrammar.isEndTag(token) && stringSetNodeType.equals(xmlGrammar.getType(token))) {
 						TreeNodeAttributeSet tnas = TreeNodeAttributeSet.getTagAttributes(token, xmlGrammar);
 						String countString = tnas.getAttribute(COUNT_ATTRIBUTE);
+						if (countString != null) try {
+							count[0] = Integer.parseInt(countString);
+						} catch (NumberFormatException nfe) {}
+					}
+				}
+				public void close() throws IOException {}
+			});
+			return count[0];
+		}
+		catch (IOException ioe) {
+			return 0;
+		}
+	}
+	
+	/* (non-Javadoc)
+	 * @see de.uka.ipd.idaho.onn.stringPool.StringPoolClient#getStringClusterCount(long)
+	 */
+	public int getStringClusterCount(long since) {
+		try {
+			URL countUrl = new URL(this.baseUrl + "?" + ACTION_PARAMETER + "=" + COUNT_ACTION_NAME + ((since < 1) ? "" : ("&" + SINCE_ATTRIBUTE + "=" + URLEncoder.encode(TIMESTAMP_DATE_FORMAT.format(new Date(since)), ENCODING))));
+			final int[] count = {0};
+			xmlParser.stream(new BufferedReader(new InputStreamReader(countUrl.openStream(), ENCODING)), new TokenReceiver() {
+				public void storeToken(String token, int treeDepth) throws IOException {
+					if (xmlGrammar.isTag(token) && !xmlGrammar.isEndTag(token) && stringSetNodeType.equals(xmlGrammar.getType(token))) {
+						TreeNodeAttributeSet tnas = TreeNodeAttributeSet.getTagAttributes(token, xmlGrammar);
+						String countString = tnas.getAttribute(CLUSTER_COUNT_ATTRIBUTE);
 						if (countString != null) try {
 							count[0] = Integer.parseInt(countString);
 						} catch (NumberFormatException nfe) {}
@@ -681,14 +747,30 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 	}
 //	
 //	public static void main(String[] args) throws Exception {
-//		if (true) {
+////		if (true) {
+//////			System.out.println(parseTime("Sat, 15 Oct 2011 19:04:19 +0000"));
 ////			System.out.println(parseTime("Sat, 15 Oct 2011 19:04:19 +0000"));
-//			System.out.println(parseTime("Sat, 15 Oct 2011 19:04:19 +0000"));
-//			return;
-//		}
+////			return;
+////		}
 //		
 //		//	TODO test threaded iterator after nodes populated
-//		StringPoolRestClient pbrc = new StringPoolRestClient("http://idaho.ipd.uka.de/gnubTest/pb");
+//		StringPoolRestClient pbrc = new StringPoolRestClient("http://plazi2.cs.umb.edu/RefBank/rbk") {
+//			public String getNamespaceAttribute() {
+//				return "";
+//			}
+//			public String getStringNodeType() {
+//				return "ref";
+//			}
+//			public String getStringParsedNodeType() {
+//				return "refParsed";
+//			}
+//			public String getStringPlainNodeType() {
+//				return "refString";
+//			}
+//			public String getStringSetNodeType() {
+//				return "refSet";
+//			}
+//		};
 ////		PooledStringIterator pbri = pbrc.findStrings(null, false, null, "Agosti", null, -1, null, true);
 //		PooledStringIterator pbri = pbrc.getStringsUpdatedSince(1);
 //		while (pbri.hasNextString()) {
