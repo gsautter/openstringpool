@@ -1814,7 +1814,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			for (int q = 0; q < fullTextQueryPredicates.length; q++) {
 				if ((fullTextQueryPredicates[q].length() == 0) || fullTextQueryPredicates[q].matches("[\\s\\%]++"))
 					continue;
-				where.append(" " + (disjunctive ? "OR" : "AND") + " data." + STRING_TEXT_COLUMN_NAME + " LIKE '%" + EasyIO.prepareForLIKE(fullTextQueryPredicates[q]) + "%'");
+				where.append(" " + (disjunctive ? "OR" : "AND") + " lower(data." + STRING_TEXT_COLUMN_NAME + ") LIKE '%" + EasyIO.prepareForLIKE(fullTextQueryPredicates[q]) + "%'");
 			}
 		where.append(")");
 		if (disjunctive && (where.length() < 6))
@@ -1905,6 +1905,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		else query = "SELECT " + fields +
 				" FROM " + this.parsedStringTableName + " data" +
 				" WHERE " + where + 
+				((limit > 0) ? (" LIMIT " + limit) : "") + 
 				";";
 		
 		System.out.println("Query is " + query);
@@ -2644,7 +2645,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	 *            specific index, given in a properties object
 	 * @return an iterator over the strings matching the query
 	 */
-	protected PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, final boolean concise, int limit, boolean selfCanonicalOnly, Properties detailPredicates) {
+	protected PooledStringIterator findStrings(String[] textPredicates, boolean disjunctive, String type, String user, boolean concise, int limit, boolean selfCanonicalOnly, Properties detailPredicates) {
 		if (((textPredicates == null) || (textPredicates.length == 0)) && (type == null) && (user == null) && ((detailPredicates == null) || detailPredicates.isEmpty()))
 			return new ExceptionPSI(new IOException("Empty query"));
 		try {
