@@ -1814,7 +1814,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			for (int q = 0; q < fullTextQueryPredicates.length; q++) {
 				if ((fullTextQueryPredicates[q].length() == 0) || fullTextQueryPredicates[q].matches("[\\s\\%]++"))
 					continue;
-				where.append(" " + (disjunctive ? "OR" : "AND") + " lower(data." + STRING_TEXT_COLUMN_NAME + ") LIKE '%" + EasyIO.prepareForLIKE(fullTextQueryPredicates[q]) + "%'");
+				where.append(" " + (disjunctive ? "OR" : "AND") + " lower(data." + STRING_TEXT_COLUMN_NAME + ") LIKE '%" + EasyIO.prepareForLIKE(fullTextQueryPredicates[q].toLowerCase()) + "%'");
 			}
 		where.append(")");
 		if (disjunctive && (where.length() < 6))
