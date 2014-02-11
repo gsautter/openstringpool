@@ -110,24 +110,26 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 				
 				//	check if update waiting
 				OnnNode updateNode = null;
+				OnnNode contactNode = null;
 				long currentTime = System.currentTimeMillis();
 				
-				//	check if some node to poll
+				//	check if some node to poll or ping
 				synchronized (nodes) {
 					
 					//	first, check when last tried to poll
 					for (Iterator rit = nodes.values().iterator(); (updateNode == null) && rit.hasNext();) {
 						OnnNode node = ((OnnNode) rit.next());
-						if (!node.active)
-							continue;
-						if ((node.lastAttemptedLookup + (node.updateInterval * 1000)) < currentTime)
+						if (node.active && ((node.lastAttemptedUpdate + (node.updateInterval * 1000)) < currentTime))
 							updateNode = node;
+						else if ((node.lastAttemptedContact + (1000 * 60 * 60)) < currentTime) // try every hour
+							contactNode = node;
 					}
 				}
 				
-				//	if so, get updates
+				//	if node to poll, get updates
 				if (updateNode != null) try {
-					updateNode.lastAttemptedLookup = currentTime;
+					updateNode.lastAttemptedUpdate = currentTime;
+					updateNode.lastAttemptedContact = currentTime;
 					updateFrom(updateNode);
 				}
 				catch (IOException ioe) {
@@ -138,6 +140,10 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 					System.out.println("Error on getting updates from " + updateNode.name + " - " + e.getClass().getName() + " (" + e.getMessage() + ")");
 					e.printStackTrace(System.out);
 				}
+				
+				//	if node to ping, do it
+				if (contactNode != null)
+					contactNode.ping();
 				
 				//	give a little time to the others
 				if (this.keepRunning) try {
@@ -191,8 +197,13 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 				} catch (NumberFormatException nfe) {}
 				try {
 					node.lastUpdate = Long.parseLong(nodeData.getSetting(LAST_UPDATE_SETTING, "0"));
+					node.lastAttemptedUpdate = node.lastUpdate;
 				} catch (NumberFormatException nfe) {}
 				node.active = "true".equals(nodeData.getSetting(ACTIVE_SETTING, "false"));
+				try {
+					node.lastContact = Long.parseLong(nodeData.getSetting(LAST_CONTACT_SETTING, "0"));
+					node.lastAttemptedContact = node.lastContact;
+				} catch (NumberFormatException nfe) {}
 				this.nodes.put(node.name, node);
 			}
 		}
@@ -240,7 +251,7 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 	private void updateFrom(OnnNode node) throws IOException {
 		System.out.println("OpenNodeNetwork: updating from " + node.name + " (" + node.accessUrl + ")");
 		boolean success = true;
-		//	with some 10% probability, fetch infrastructure data TODO assess if frequency makes sense
+		//	with some 10% probability, fetch infrastructure data
 		if (Math.random() < 0.1) {
 			OnnNode[] rNodes = node.getNodes();
 			if (rNodes != null) try {
@@ -263,8 +274,10 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 			ioe.printStackTrace(System.out);
 		}
 		
-		if (success)
-			node.lastUpdate = node.lastAttemptedLookup;
+		if (success) {
+			node.lastUpdate = node.lastAttemptedUpdate;
+			node.lastContact = node.lastAttemptedContact;
+		}
 	}
 	
 	/**
@@ -286,7 +299,6 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 	 * @see javax.servlet.http.HttpServlet#doGet(javax.servlet.http.HttpServletRequest, javax.servlet.http.HttpServletResponse)
 	 */
 	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-//		String action = request.getParameter(ACTION_PARAMETER);
 		String action = request.getPathInfo();
 		if (action == null)
 			action = request.getParameter(ACTION_PARAMETER);
@@ -309,9 +321,9 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 		else if (NAME_ACTION_NAME.equals(action))
 			this.doName(request, response);
 		
-		//	request for admin login page
+		//	request for admin page
 		else if (ADMIN_ACTION_NAME.equals(action))
-			this.sendLoginPage(request, response);
+			this.doAdmin(request, response);
 		
 		//	unknown action, send error
 		else response.sendError(HttpServletResponse.SC_BAD_REQUEST, ("Invalid action: " + action));
@@ -325,7 +337,6 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 	 * @see javax.servlet.http.HttpServlet#doGet(javax.servlet.http.HttpServletRequest, javax.servlet.http.HttpServletResponse)
 	 */
 	protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-//		String action = request.getParameter(ACTION_PARAMETER);
 		String action = request.getPathInfo();
 		if (action == null)
 			action = request.getParameter(ACTION_PARAMETER);
@@ -377,11 +388,17 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 		}
 		
 		//	add introducing node if unknown
-		if (!this.nodes.containsKey(name)) {
-			OnnNode node = new OnnNode(name, accessUrl);
-			this.storeNode(node);
-			this.nodes.put(node.name, node);
-		}
+		OnnNode node = ((OnnNode) this.nodes.get(name));
+		if (node == null)
+			synchronized (this.nodes) {
+				node = new OnnNode(name, accessUrl);
+				this.storeNode(node);
+				this.nodes.put(node.name, node);
+			}
+		
+		//	remember node contact
+		node.lastAttemptedContact = System.currentTimeMillis();
+		node.lastContact = node.lastAttemptedContact;
 		
 		//	send known nodes
 		response.setCharacterEncoding(ENCODING);
@@ -462,7 +479,7 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 					if (rNodes == null)
 						operationError = "Remote domain unreachable.";
 					else {
-						NAR nar = this.addNodes(rNodes);
+						NodeAdditionResult nar = this.addNodes(rNodes);
 						operationResult = ("Domain '" + nNode.name + "' added successfully, imported " + nar.newNodes + " new nodes, updated " + nar.updatedNodes + " ones.");
 					}
 				}
@@ -596,7 +613,7 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 				if (rNodes == null)
 					operationError = "Remote domain unreachable.";
 				else {
-					NAR nar = this.addNodes(rNodes);
+					NodeAdditionResult nar = this.addNodes(rNodes);
 					operationResult = ("Imported " + nar.newNodes + " new nodes, updated " + nar.updatedNodes + " ones.");
 				}
 			}
@@ -922,16 +939,18 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 				this.writeLine("</tr>");
 				
 				OnnNode[] nodes = getNodes();
+				long currentTime = System.currentTimeMillis();
 				for (int n = 0; n < nodes.length; n++) {
+					boolean elusiveNode = ((nodes[n].lastContact + (1000 * 60 * 60 * 24)) < currentTime); // don't propagate nodes unheard of for a day
 					this.writeLine("<tr class=\"nodesTableBody\">");
-					this.writeLine("<td class=\"nodesTableCell\">" + nodes[n].name + "</td>");
-					this.writeLine("<td class=\"nodesTableCell\"><input type=\"checkbox\" name=\"" + nodes[n].name + ".active\" id=\"" + nodes[n].name + ".active\" value=\"true\"" + (nodes[n].active ? " checked" : "") + " /></td>");
-					this.writeLine("<td class=\"nodesTableCell\"><input type=\"text\" size=\"5\" name=\"" + nodes[n].name + ".replicationInterval\" id=\"" + nodes[n].name + ".replicationInterval\" value=\"" + nodes[n].updateInterval + "\" /> sec</td>");
-					this.writeLine("<td class=\"nodesTableCell\">" + df.format(new Date(nodes[n].lastUpdate)) + "</td>");
-					this.writeLine("<td class=\"nodesTableCell\"><input type=\"button\" onclick=\"submitResetReplication('" + nodes[n].name + "');return false;\" value=\"Reset\" /></td>");
-					this.writeLine("<td class=\"nodesTableCell\"><input type=\"text\" class=\"urlInput\" name=\"" + nodes[n].name + ".accessUrl\" id=\"" + nodes[n].name + ".accessUrl\" value=\"" + nodes[n].accessUrl + "\" /></td>");
-					this.writeLine("<td class=\"nodesTableCell\"><input type=\"button\" onclick=\"submitPing('" + nodes[n].name + "');return false;\" value=\"Ping\" /></td>");
-					this.writeLine("<td class=\"nodesTableCell\"><input type=\"button\" onclick=\"submitGetNodes('" + nodes[n].name + "');return false;\" value=\"Import\" /></td>");
+					this.writeLine("<td class=\"nodesTableCell" + (elusiveNode ? " elusiveNode" : "") + "\">" + nodes[n].name + "</td>");
+					this.writeLine("<td class=\"nodesTableCell" + (elusiveNode ? " elusiveNode" : "") + "\"><input type=\"checkbox\" name=\"" + nodes[n].name + ".active\" id=\"" + nodes[n].name + ".active\" value=\"true\"" + (nodes[n].active ? " checked" : "") + " /></td>");
+					this.writeLine("<td class=\"nodesTableCell" + (elusiveNode ? " elusiveNode" : "") + "\"><input type=\"text\" size=\"5\" name=\"" + nodes[n].name + ".replicationInterval\" id=\"" + nodes[n].name + ".replicationInterval\" value=\"" + nodes[n].updateInterval + "\" /> sec</td>");
+					this.writeLine("<td class=\"nodesTableCell" + (elusiveNode ? " elusiveNode" : "") + "\">" + df.format(new Date(nodes[n].lastUpdate)) + "</td>");
+					this.writeLine("<td class=\"nodesTableCell" + (elusiveNode ? " elusiveNode" : "") + "\"><input type=\"button\" onclick=\"submitResetReplication('" + nodes[n].name + "');return false;\" value=\"Reset\" /></td>");
+					this.writeLine("<td class=\"nodesTableCell" + (elusiveNode ? " elusiveNode" : "") + "\"><input type=\"text\" class=\"urlInput\" name=\"" + nodes[n].name + ".accessUrl\" id=\"" + nodes[n].name + ".accessUrl\" value=\"" + nodes[n].accessUrl + "\" /></td>");
+					this.writeLine("<td class=\"nodesTableCell" + (elusiveNode ? " elusiveNode" : "") + "\"><input type=\"button\" onclick=\"submitPing('" + nodes[n].name + "');return false;\" value=\"Ping\" /></td>");
+					this.writeLine("<td class=\"nodesTableCell" + (elusiveNode ? " elusiveNode" : "") + "\"><input type=\"button\" onclick=\"submitGetNodes('" + nodes[n].name + "');return false;\" value=\"Import\" /></td>");
 					this.writeLine("</tr>");
 				}
 				
@@ -993,8 +1012,11 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 			bw.write(" " + ACCESS_URL_ATTRIBUTE + "=\"" + this.accessUrl + "\"");
 			bw.write("/>");
 		}
+		long currentTime = System.currentTimeMillis();
 		for (int n = 0; n < nodes.length; n++) {
 			if (this.domainName.equals(nodes[n].name) && includeSelf)
+				continue;
+			if ((nodes[n].lastContact + (1000 * 60 * 60 * 24)) < currentTime) // don't propagate nodes unheard of for a day
 				continue;
 			bw.write("<" + NODE_NODE_TYPE);
 			bw.write(" " + NAME_ATTRIBUTE + "=\"" + nodes[n].name + "\"");
@@ -1018,8 +1040,11 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 		public final String accessUrl;
 		private boolean active = false;
 		private long lastUpdate = 0;
-		private long lastAttemptedLookup;
+		private long lastAttemptedUpdate = 0;
 		private int updateInterval = 3600;
+		private long lastContact = 0;
+		private long lastAttemptedContact = 0;
+		 // TODO have both action path and action parameter for some grace period, then remove parameter
 		public OnnNode(String name, String accessUrl) {
 			this.accessUrl = accessUrl;
 			this.name = name;
@@ -1030,11 +1055,16 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 		}
 		boolean ping() {
 			try {
+				this.lastAttemptedContact = System.currentTimeMillis();
 				URL pingUrl = new URL(this.accessUrl + "/" + PING_ACTION_NAME + "?" + ACTION_PARAMETER + "=" + PING_ACTION_NAME);
 				BufferedReader br = new BufferedReader(new InputStreamReader(pingUrl.openStream(), ENCODING));
 				String pong = br.readLine();
 				br.close();
-				return ((pong != null) && pong.startsWith("<" + NODES_NODE_TYPE));
+				if ((pong != null) && pong.startsWith("<" + NODES_NODE_TYPE)) {
+					this.lastContact = this.lastAttemptedContact;
+					return true;
+				}
+				else return false;
 			}
 			catch (IOException ioe) {
 				return false;
@@ -1042,9 +1072,12 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 		}
 		OnnNode[] getNodes() {
 			try {
+				this.lastAttemptedContact = System.currentTimeMillis();
 				URL nodesUrl = new URL(this.accessUrl + "/" + NODES_ACTION_NAME + "?" + ACTION_PARAMETER + "=" + NODES_ACTION_NAME);
 				BufferedReader br = new BufferedReader(new InputStreamReader(nodesUrl.openStream(), ENCODING));
-				return readNodes(br);
+				OnnNode[] nodes = readNodes(br);
+				this.lastContact = this.lastAttemptedContact;
+				return nodes;
 			}
 			catch (IOException ioe) {
 				return null;
@@ -1052,6 +1085,7 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 		}
 		OnnNode[] introduceTo(String domainName, String accessUrl) {
 			try {
+				this.lastAttemptedContact = System.currentTimeMillis();
 				URL introduceUrl = new URL(this.accessUrl + "/" + INTRODUCE_ACTION_NAME);
 				HttpURLConnection con = ((HttpURLConnection) introduceUrl.openConnection());
 				con.setRequestMethod("POST");
@@ -1062,18 +1096,23 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 				bw.write("&" + ACCESS_URL_PARAMETER + "=" + URLEncoder.encode(accessUrl, ENCODING));
 				bw.flush();
 				BufferedReader br = new BufferedReader(new InputStreamReader(con.getInputStream(), ENCODING));
-				return readNodes(br);
+				OnnNode[] nodes = readNodes(br);
+				this.lastContact = this.lastAttemptedContact;
+				return nodes;
 			}
 			catch (IOException ioe) {
 				return null;
 			}
 		}
 		private String getName() throws IOException {
+			this.lastAttemptedContact = System.currentTimeMillis();
 			URL nodesUrl = new URL(this.accessUrl + "/" + NAME_ACTION_NAME + "?" + ACTION_PARAMETER + "=" + NAME_ACTION_NAME);
 			BufferedReader br = new BufferedReader(new InputStreamReader(nodesUrl.openStream(), ENCODING));
 			OnnNode[] nodes = readNodes(br);
-			if (nodes.length == 1)
+			if (nodes.length == 1) {
+				this.lastContact = this.lastAttemptedContact;
 				return nodes[0].name;
+			}
 			else throw new IOException("Could not retrieve remote domain name.");
 		}
 		private static final OnnNode[] readNodes(BufferedReader br) {
@@ -1104,7 +1143,7 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 		}
 	}
 	
-	private NAR addNodes(OnnNode[] nodes) throws IOException {
+	private NodeAdditionResult addNodes(OnnNode[] nodes) throws IOException {
 		int nnc = 0;
 		int unc = 0;
 		for (int n = 0; n < nodes.length; n++) {
@@ -1128,12 +1167,12 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 				unc++;
 			}
 		}
-		return new NAR(nnc, unc);
+		return new NodeAdditionResult(nnc, unc);
 	}
-	private static class NAR {
+	private static class NodeAdditionResult {
 		final int newNodes;
 		final int updatedNodes;
-		NAR(int newNodes, int updatedNodes) {
+		NodeAdditionResult(int newNodes, int updatedNodes) {
 			this.newNodes = newNodes;
 			this.updatedNodes = updatedNodes;
 		}
@@ -1144,6 +1183,7 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 	private static final String UPDATE_INTERVAL_SETTING = "updateInterval";
 	private static final String LAST_UPDATE_SETTING = "lastUpdate";
 	private static final String ACTIVE_SETTING = "active";
+	private static final String LAST_CONTACT_SETTING = "lastContact";
 	private void storeNode(OnnNode node) throws IOException {
 		Settings resData = new Settings();
 		resData.setSetting(DOMAIN_NAME_SETTING, node.name);
