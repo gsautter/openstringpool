@@ -32,6 +32,7 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.TreeMap;
@@ -81,11 +82,22 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 	private static final String PING_OPERATION = "ping";
 	private static final String RE_INITIALIZE_OPERATION = "reInit";
 	private static final String RESET_REPLICATION_OPERATION = "resetReplication";
+	private static final String LOGOUT_OPERATION = "logout";
 	
 	protected String domainName;
 	protected String accessUrl;
 	
 	private String passcode = RandomByteSource.getGUID(); // initialize to random non-null value, locking access if config is faulty
+	private String passHash = null;
+	private String passSalt = null;
+	/*
+	 * To reset the password to default listed plain in config.cnfg:
+	 * - shut down web application
+	 * - open config.cnfg.dynamic
+	 * - remove settings adminPassHash and adminPassSalt
+	 * - save config.cnfg.dynamic
+	 * - restart web application
+	 */
 	
 	private TreeMap nodes = new TreeMap();
 	private EventFetcherThread updateFetcherService = null;
@@ -177,8 +189,10 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 			throw new ServletException("Invalid domain name.");
 		this.accessUrl = this.getSetting("accessUrl");
 		
-		//	read password
+		//	read passcode
 		this.passcode = this.getSetting("adminPasscode");
+		this.passHash = this.getSetting("adminPassHash");
+		this.passSalt = this.getSetting("adminPassSalt");
 		
 		//	load known nodes
 		File[] remoteResFiles = this.dataFolder.listFiles(new FileFilter() {
@@ -438,14 +452,18 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 		bw.flush();
 	}
 	
+	private HashSet adminSessionIDs = new HashSet();
+	
 	private void doAdmin(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
 		
 		//	authenticate
 		HttpSession session = request.getSession(false);
-		if (session == null) {
+		if ((session == null) || !this.adminSessionIDs.contains(session.getId())) {
 			String passcode = request.getParameter(PASSCODE_PARAMETER);
-			if (this.passcode.equals(passcode))
+			if ((this.passHash == null) ? this.passcode.equals(passcode) : this.passHash.equals("" + (passcode + this.passSalt).hashCode())) {
 				session = request.getSession(true);
+				this.adminSessionIDs.add(session.getId());
+			}
 			else {
 				this.sendLoginPage(request, response);
 				return;
@@ -565,15 +583,17 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 			String passcode = request.getParameter(PASSCODE_PARAMETER);
 			String newPasscode1 = request.getParameter("newPasscode1");
 			String newPasscode2 = request.getParameter("newPasscode2");
-			if (!this.passcode.equals(passcode))
+			if ((this.passHash == null) ? !this.passcode.equals(passcode) : !this.passHash.equals("" + (passcode + this.passSalt).hashCode()))
 				operationError = "Invalid passcode.";
 			else if (newPasscode1 == null)
 				operationError = "Invalid new passcode.";
 			else if (!newPasscode1.equals(newPasscode2))
 				operationError = "New passcode does not match confirmation.";
 			else {
-				this.setSetting("adminPasscode", newPasscode1);
-				this.passcode = newPasscode1;
+				this.passSalt = ("" + ((int) (Math.random() * 65536)));
+				this.passHash = ("" + (newPasscode1 + this.passSalt).hashCode());
+				this.setSetting("adminPassHash", this.passHash);
+				this.setSetting("adminPassSalt", this.passSalt);
 				this.storeConfig();
 				operationResult = "Passcode set successfully.";
 			}
@@ -644,6 +664,13 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 					operationError = ("Error re-initializing servlet '" + reInitName + "': " + e.getMessage());
 				}
 			}
+		}
+		
+		//	logout
+		else if (LOGOUT_OPERATION.equals(operation)) {
+			this.adminSessionIDs.remove(session.getId());
+			this.sendLoginPage(request, response);
+			return;
 		}
 		
 		//	unknown action, send error
@@ -803,6 +830,11 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 				this.writeLine("  return i;");
 				this.writeLine("}");
 				
+				this.writeLine("function submitLogout() {");
+				this.writeLine("  operation.value = '" + LOGOUT_OPERATION + "';");
+				this.writeLine("  submitForm.submit();");
+				this.writeLine("}");
+				
 				this.writeLine("function $(id) {");
 				this.writeLine("  return document.getElementById(id);");
 				this.writeLine("}");
@@ -895,9 +927,9 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 				this.writeLine("</td>");
 				this.writeLine("</tr>");
 				
-				//	add node data table
+				//	add connect table
 				this.writeLine("<tr class=\"mainTableBody\">");
-				this.writeLine("<td class=\"mainTableCell\" colspan=\"2\">");
+				this.writeLine("<td class=\"mainTableCell\">");
 				
 				this.writeLine("<table class=\"nodesTable\" id=\"addNodeTable\">");
 				this.writeLine("<tr class=\"nodesTableHead\">");
@@ -911,6 +943,19 @@ public class OnnServlet extends HtmlServlet implements OnnConstants {
 				this.writeLine("</tr>");
 				this.writeLine("<tr class=\"nodesTableBody\">");
 				this.writeLine("<td class=\"nodesTableCell\"><input type=\"button\" class=\"button\" onclick=\"submitAddNode();return false;\" value=\"Add Node\" /></td>");
+				this.writeLine("</tr>");
+				this.writeLine("</table>");
+				
+				this.writeLine("</td>");
+				this.writeLine("<td class=\"mainTableCell\">");
+				
+				//	add logout table
+				this.writeLine("<table class=\"nodesTable\" id=\"logoutTable\">");
+				this.writeLine("<tr class=\"nodesTableHead\">");
+				this.writeLine("<td class=\"nodesTableCell\"><b>Logout</b></td>");
+				this.writeLine("</tr>");
+				this.writeLine("<tr class=\"nodesTableBody\">");
+				this.writeLine("<td class=\"nodesTableCell\"><input type=\"button\" class=\"button\" onclick=\"submitLogout();return false;\" value=\"Logout\" /></td>");
 				this.writeLine("</tr>");
 				this.writeLine("</table>");
 				

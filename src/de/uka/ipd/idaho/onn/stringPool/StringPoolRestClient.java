@@ -372,8 +372,7 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 			StringBuffer stringIdString = new StringBuffer();
 			for (int i = 0; i < stringIds.length; i++)
 				stringIdString.append("&" + STRING_ID_ATTRIBUTE + "=" + URLEncoder.encode(stringIds[i], ENCODING));
-			URL getUrl = new URL(this.baseUrl + "?" + ACTION_PARAMETER + "=" + GET_ACTION_NAME + stringIdString.toString());
-			return this.receiveStrings(new BufferedReader(new InputStreamReader(getUrl.openStream(), ENCODING)));
+			return this.receiveStrings(ACTION_PARAMETER + "=" + GET_ACTION_NAME + stringIdString.toString());
 		}
 		catch (IOException ioe) {
 			return new ExceptionPSI(ioe);
@@ -385,8 +384,7 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 	 */
 	public PooledStringIterator getLinkedStrings(String canonicalStringId) throws IOException {
 		try {
-			URL getUrl = new URL(this.baseUrl + "?" + ACTION_PARAMETER + "=" + GET_ACTION_NAME + "&" + CANONICAL_STRING_ID_ATTRIBUTE + "=" + URLEncoder.encode(canonicalStringId, ENCODING));
-			return this.receiveStrings(new BufferedReader(new InputStreamReader(getUrl.openStream(), ENCODING)));
+			return this.receiveStrings(ACTION_PARAMETER + "=" + GET_ACTION_NAME + "&" + CANONICAL_STRING_ID_ATTRIBUTE + "=" + URLEncoder.encode(canonicalStringId, ENCODING));
 		}
 		catch (IOException ioe) {
 			return new ExceptionPSI(ioe);
@@ -446,15 +444,35 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 					queryString.append("&");
 				queryString.append(detailPredicates);
 			}
-			URL findUrl = new URL(this.baseUrl + "?" + ACTION_PARAMETER + "=" + FIND_ACTION_NAME + queryString.toString());
-			return this.receiveStrings(new BufferedReader(new InputStreamReader(findUrl.openStream(), ENCODING)));
+			return this.receiveStrings(ACTION_PARAMETER + "=" + FIND_ACTION_NAME + queryString.toString());
 		}
 		catch (IOException ioe) {
 			return new ExceptionPSI(ioe);
 		}
 	}
 	
-	private PooledStringIterator receiveStrings(Reader r) throws IOException {
+	/**
+	 * Produce an iterator over the pooled strings coming in as XML as the
+	 * response to some URL query string appended to the base URL. The data is
+	 * assumed to be encoded in UTF-8. This method is meant to be used by sub
+	 * classes only.
+	 * @param urlString the URL to fetch pooled strings from
+	 * @return an iterator over the pooled strings coming from the argument URL
+	 * @throws IOException
+	 */
+	protected PooledStringIterator receiveStrings(String urlQueryString) throws IOException {
+		URL url = new URL(this.baseUrl + "?" + urlQueryString);
+		return this.receiveStrings(new BufferedReader(new InputStreamReader(url.openStream(), ENCODING)));
+	}
+	
+	/**
+	 * Produce an iterator over the pooled strings coming in as XML from some
+	 * reader. This method is meant to be used by sub classes only.
+	 * @param r the reader whose data to decode into pooled strings
+	 * @return an iterator over the pooled strings coming from the argument reader
+	 * @throws IOException
+	 */
+	protected PooledStringIterator receiveStrings(Reader r) throws IOException {
 		return new ThreadedPSI(r);
 //		final ArrayList stringList = new ArrayList();
 //		xmlParser.stream(r, new TokenReceiver() {
@@ -549,8 +567,7 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 	 */
 	public PooledStringIterator getStringsUpdatedSince(long updatedSince) {
 		try {
-			URL feedUrl = new URL(this.baseUrl + "?" + ACTION_PARAMETER + "=" + FEED_ACTION_NAME + "&" + UPDATED_SINCE_ATTRIBUTE + "=" + URLEncoder.encode(TIMESTAMP_DATE_FORMAT.format(new Date(Math.max(updatedSince, 1))), ENCODING));
-			return this.receiveStrings(new BufferedReader(new InputStreamReader(feedUrl.openStream(), ENCODING)));
+			return this.receiveStrings(ACTION_PARAMETER + "=" + FEED_ACTION_NAME + "&" + UPDATED_SINCE_ATTRIBUTE + "=" + URLEncoder.encode(TIMESTAMP_DATE_FORMAT.format(new Date(Math.max(updatedSince, 1))), ENCODING));
 		}
 		catch (IOException ioe) {
 			return new ExceptionPSI(ioe);

@@ -67,8 +67,6 @@ public interface StringPoolClient {
 		 */
 		public abstract String getStringParsed();
 		
-		//	TODO consider using lazy loading here
-		
 		/**
 		 * Retrieve the checksum (MD5 hash) of the parsed version of the string.
 		 * This method returns a non-null result only if (a) the network of
@@ -233,7 +231,7 @@ public interface StringPoolClient {
 		
 		/**
 		 * Check whether the iterator has a next string.
-		 * @return true iof there is a next string, false otherwise
+		 * @return true if there is a next string, false otherwise
 		 */
 		public abstract boolean hasNextString();
 		

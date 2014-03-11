@@ -82,35 +82,30 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	 */
 	
 	//	main table
-	private static final String PARSED_STRING_TABLE_NAME_SUFFIX = "Data";
-	private static final String STRING_ID_COLUMN_NAME = "StringId";
-	private static final String STRING_ID_HASH_COLUMN_NAME = "IdHash"; // int hash of the ID string, speeding up joins with index table
-	private static final String STRING_TYPE_COLUMN_NAME = "StringType";
+	protected static final String PARSED_STRING_TABLE_NAME_SUFFIX = "Data";
+	protected static final String STRING_ID_COLUMN_NAME = "StringId";
+	protected static final String STRING_ID_HASH_COLUMN_NAME = "IdHash"; // int hash of the ID string, speeding up joins with index table
+	protected static final String STRING_TYPE_COLUMN_NAME = "StringType";
 	private static final int STRING_TYPE_COLUMN_LENGTH = 32;
-	private static final String PARSE_CHECKSUM_COLUMN_NAME = "ParseChecksum";
-	private static final String CANONICAL_STRING_ID_COLUMN_NAME = "CanStringId";
-	private static final String CANONICAL_STRING_ID_HASH_COLUMN_NAME = "CanIdHash"; // int hash of the ID string, speeding up joins with index table
+	protected static final String PARSE_CHECKSUM_COLUMN_NAME = "ParseChecksum";
+	protected static final String CANONICAL_STRING_ID_COLUMN_NAME = "CanStringId";
+	protected static final String CANONICAL_STRING_ID_HASH_COLUMN_NAME = "CanIdHash"; // int hash of the ID string, speeding up joins with index table
 	
-	private static final String CREATE_TIME_COLUMN_NAME = "CreateTime";
-	private static final String CREATE_DOMAIN_COLUMN_NAME = "CreateDomain";
-	private static final String CREATE_USER_COLUMN_NAME = "CreateUser";
-	private static final String LOCAL_CREATE_DOMAIN_COLUMN_NAME = "LocalCreateDomain";
-	private static final String UPDATE_TIME_COLUMN_NAME = "UpdateTime";
-	private static final String UPDATE_DOMAIN_COLUMN_NAME = "UpdateDomain";
-	private static final String UPDATE_USER_COLUMN_NAME = "UpdateUser";
-	private static final String LOCAL_UPDATE_TIME_COLUMN_NAME = "LocalUpdateTime";
-	private static final String LOCAL_UPDATE_DOMAIN_COLUMN_NAME = "LocalUpdateDomain";
-	private static final String DELETED_COLUMN_NAME = "IsDeleted";
+	protected static final String CREATE_TIME_COLUMN_NAME = "CreateTime";
+	protected static final String CREATE_DOMAIN_COLUMN_NAME = "CreateDomain";
+	protected static final String CREATE_USER_COLUMN_NAME = "CreateUser";
+	protected static final String LOCAL_CREATE_DOMAIN_COLUMN_NAME = "LocalCreateDomain";
+	protected static final String UPDATE_TIME_COLUMN_NAME = "UpdateTime";
+	protected static final String UPDATE_DOMAIN_COLUMN_NAME = "UpdateDomain";
+	protected static final String UPDATE_USER_COLUMN_NAME = "UpdateUser";
+	protected static final String LOCAL_UPDATE_TIME_COLUMN_NAME = "LocalUpdateTime";
+	protected static final String LOCAL_UPDATE_DOMAIN_COLUMN_NAME = "LocalUpdateDomain";
+	protected static final String DELETED_COLUMN_NAME = "IsDeleted";
 	
 	private static final int DOMAIN_COLUMN_LENGTH = 32;
 	private static final int USER_COLUMN_LENGTH = 64;
 	
-	private static final String ID_TYPE_COLUMN_NAME = "IdType";
-	private static final int ID_TYPE_COLUMN_LENGHT = 32;
-	private static final String ID_VALUE_COLUMN_NAME = "IdValue";
-	private static final int ID_VALUE_COLUMN_LENGTH = 188; // fills up records to 256 bytes
-	
-	private static final String STRING_TEXT_COLUMN_NAME = "String";
+	protected static final String STRING_TEXT_COLUMN_NAME = "String";
 	private static final int STRING_TEXT_COLUMN_LENGTH = 1672; // fills up records to 2048 bytes
 	
 	//	index table
@@ -123,6 +118,10 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	
 	//	external identifier table
 	protected static final String PARSED_STRING_IDENTIFIER_TABLE_NAME_SUFFIX = "ExternalIDs";
+	protected static final String ID_TYPE_COLUMN_NAME = "IdType";
+	private static final int ID_TYPE_COLUMN_LENGHT = 32;
+	protected static final String ID_VALUE_COLUMN_NAME = "IdValue";
+	private static final int ID_VALUE_COLUMN_LENGTH = 188; // fills up records to 256 bytes
 	
 	private IoProvider io;
 	private boolean isUsingIndexTable = false;
@@ -141,6 +140,42 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	private int apiCallCountCount = 0;
 	private int apiCallCountClusterCount = 0;
 	private int apiCallCountStats = 0;
+	
+	/**
+	 * Retrieve the name of the string data table. This method exists to allow
+	 * sub classes to assemble SQL queries.
+	 * @return the table name
+	 */
+	public String getStringDataTableName() {
+		return this.parsedStringTableName;
+	}
+	
+	/**
+	 * Retrieve the name of the string index table. This method exists to allow
+	 * sub classes to assemble SQL queries.
+	 * @return the table name
+	 */
+	public String getStringIndexTableName() {
+		return this.parsedStringIndexTableName;
+	}
+	
+	/**
+	 * Retrieve the name of the history table. This method exists to allow sub
+	 * classes to assemble SQL queries.
+	 * @return the table name
+	 */
+	public String getHistoryTableName() {
+		return this.parsedStringHistoryTableName;
+	}
+	
+	/**
+	 * Retrieve the name of the external string ID table. This method exists to
+	 * allow sub classes to assemble SQL queries.
+	 * @return the table name
+	 */
+	public String getStringIdentifierTableName() {
+		return this.parsedStringIdentifierTableName;
+	}
 	
 	/**
 	 * Specify the name to use for the contained data in outside resources like
@@ -377,6 +412,18 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	 * @return true if the index table should be used, false otherwise
 	 */
 	protected boolean extendIndexTableDefinition(TableDefinition itd) {
+		return false;
+	}
+	
+	/**
+	 * Indicate whether the index table should be used case sensitive or case
+	 * insensitive. This default implementation returns false, so the index
+	 * table is filled and queried with lower case values. Sub classes wishing
+	 * to use a case sensitive index table have to overwrite this method to
+	 * return true.
+	 * @return true for case sensitive indexing, false for case insensitive
+	 */
+	protected boolean indexCaseSensitive() {
 		return false;
 	}
 	
@@ -847,6 +894,17 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	 */
 	protected void addIndexPredicates(HttpServletRequest request, Properties detailPredicates) {}
 	
+	/**
+	 * Return a string of XML namespace URI bindings to include in XML output.
+	 * This default implementation returns an empty string. Sub classes that
+	 * use external XML namespaces have to overwrite this method to return the
+	 * respective bindings.
+	 * @return the XML namespace URI bindings used by the servlet
+	 */
+	protected String getXmlNamespaceUriBindings() {
+		return "";
+	}
+	
 	private void sendStrings(InternalPooledStringIterator strings, BufferedWriter bw, long updatedSince, boolean full) throws IOException {
 		if (!strings.hasNextString()) {
 			bw.write("<" + this.stringSetNodeType);
@@ -857,9 +915,14 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			return;
 		}
 		
+		String xmlNamespaceUriBindings = this.getXmlNamespaceUriBindings();
+		if (xmlNamespaceUriBindings == null)
+			xmlNamespaceUriBindings = "";
+		else xmlNamespaceUriBindings = xmlNamespaceUriBindings.trim();
 		bw.write("<" + this.stringSetNodeType);
 		bw.write(this.xmlNamespaceAttribute);
-		bw.write(" xmlns:mods=\"http://www.loc.gov/mods/v3\"");
+		if (xmlNamespaceUriBindings.length() != 0)
+			bw.write(" " + xmlNamespaceUriBindings);
 		if (updatedSince != -1)
 			bw.write(" " + UPDATED_SINCE_ATTRIBUTE + "=\"" + TIMESTAMP_DATE_FORMAT.format(new Date(updatedSince)) + "\"");
 		bw.write(">");
@@ -1270,13 +1333,17 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	
 	private boolean storeString(InternalPooledString string, String updateSourceDomain, String updateSource, boolean isUpdate) {
 		
+		//	check plain string on insertions
+		if (!isUpdate && (this.checkPlainString(string.id, string.stringPlain, string.stringParsed) != null))
+			return false;
+		
 		//	store parse if given
 		if (string.stringParsed != null) try {
 			this.storeParsedString(string.id, string.stringParsed);
 			
 			String query = null;
 			
-			ParsedStringIndexData psid = new ParsedStringIndexData(string.id);
+			ParsedStringIndexData psid = new ParsedStringIndexData(string.id, this.indexCaseSensitive());
 			if (this.isUsingIndexTable)
 				this.extendIndexData(psid, string.stringParsed);
 			
@@ -1306,7 +1373,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 				}
 			
 			//	write identifier table entries
-			ParsedStringIdentifierData psidd = new ParsedStringIdentifierData(string.id);
+			ParsedStringIdentifierData psidd = new ParsedStringIdentifierData(string.id, this.indexCaseSensitive());
 			this.extendIdentifierData(psidd, string.stringParsed);
 			if (psidd.containsData())
 				for (int i = 0; i < psidd.updateParts.size(); i++) {
@@ -1489,7 +1556,9 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		StringBuffer columns = new StringBuffer();
 		StringBuffer values = new StringBuffer();
 		StringBuffer updates = new StringBuffer();
-		ParsedStringIndexData(String id) {
+		boolean caseSensitive;
+		ParsedStringIndexData(String id, boolean caseSensitive) {
+			this.caseSensitive = caseSensitive;
 			
 			//	start column strings
 			this.columns.append(STRING_ID_COLUMN_NAME);
@@ -1507,10 +1576,10 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		 */
 		public void addIndexAttribute(String name, String value) {
 			this.columns.append(", " + name);
-			this.values.append(", '" + EasyIO.sqlEscape(value.toLowerCase()) + "'");
+			this.values.append(", '" + EasyIO.sqlEscape(this.caseSensitive ? value : value.toLowerCase()) + "'");
 			if (this.updates.length() != 0)
 				this.updates.append(", ");
-			this.updates.append(name + " = '" + EasyIO.sqlEscape(value.toLowerCase()) + "'");
+			this.updates.append(name + " = '" + EasyIO.sqlEscape(this.caseSensitive ? value : value.toLowerCase()) + "'");
 		}
 		
 		boolean containsData() {
@@ -1536,8 +1605,10 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		StringVector updateParts = new StringVector();
 		Properties insertParts = new Properties();
 		String id;
-		ParsedStringIdentifierData(String id) {
+		boolean caseSensitive;
+		ParsedStringIdentifierData(String id, boolean caseSensitive) {
 			this.id = id;
+			this.caseSensitive = caseSensitive;
 		}
 		
 		/**
@@ -1546,10 +1617,10 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		 * @param value the value of the external identifier
 		 */
 		public void addIdentifier(String type, String value) {
-			String updatePart = "SET " + ID_VALUE_COLUMN_NAME + " = '" + EasyIO.sqlEscape(value.toLowerCase()) + "'" +
+			String updatePart = "SET " + ID_VALUE_COLUMN_NAME + " = '" + EasyIO.sqlEscape(this.caseSensitive ? value : value.toLowerCase()) + "'" +
 					" WHERE " + STRING_ID_HASH_COLUMN_NAME + " = " + this.id.hashCode() +
 					" AND " + STRING_ID_COLUMN_NAME + " LIKE '" + EasyIO.sqlEscape(this.id) + "'" +
-					" AND " + ID_TYPE_COLUMN_NAME + " LIKE '" + EasyIO.sqlEscape(type.toLowerCase()) + "'" +
+					" AND " + ID_TYPE_COLUMN_NAME + " LIKE '" + EasyIO.sqlEscape(this.caseSensitive ? value : type.toLowerCase()) + "'" +
 					"";
 			this.updateParts.addElementIgnoreDuplicates(updatePart);
 			this.insertParts.setProperty(updatePart, "(" +
@@ -1565,9 +1636,9 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 					", " + 
 					this.id.hashCode() + 
 					", " + 
-					"'" + EasyIO.sqlEscape(type.toLowerCase()) + "'" + 
+					"'" + EasyIO.sqlEscape(this.caseSensitive ? type : type.toLowerCase()) + "'" + 
 					", " + 
-					"'" + EasyIO.sqlEscape(value.toLowerCase()) + "'" + 
+					"'" + EasyIO.sqlEscape(this.caseSensitive ? value : value.toLowerCase()) + "'" + 
 					")" +
 					"");
 		}
@@ -1802,6 +1873,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			System.out.println("ParsedStringPool: " + sqle.getClass().getName() + " (" + sqle.getMessage() + ") while getting linked strings.");
 			System.out.println("  query was " + query);
 		}
+		
 		return new SqlParsedStringIterator(sqr, 'O');
 	}
 	
@@ -1827,7 +1899,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			where.append(" AND (data." + STRING_TYPE_COLUMN_NAME + " LIKE '%" + EasyIO.prepareForLIKE(type) + "%')");
 		String user = detailPredicates.getProperty(USER_PARAMETER);
 		if (user != null)
-			where.append(" AND ((data." + CREATE_USER_ATTRIBUTE + " LIKE '%" + EasyIO.prepareForLIKE(user) + "%') OR (data." + UPDATE_USER_ATTRIBUTE + " LIKE '%" + EasyIO.prepareForLIKE(user) + "%'))");
+			where.append(" AND ((data." + CREATE_USER_COLUMN_NAME + " LIKE '%" + EasyIO.prepareForLIKE(user) + "%') OR (data." + UPDATE_USER_COLUMN_NAME + " LIKE '%" + EasyIO.prepareForLIKE(user) + "%'))");
 		for (Iterator dpit = detailPredicates.keySet().iterator(); dpit.hasNext();) {
 			String detailName = ((String) dpit.next());
 			if (STRING_TYPE_COLUMN_NAME.equals(detailName) || TYPE_PARAMETER.equals(detailName) || USER_PARAMETER.equals(detailName))
@@ -1836,12 +1908,12 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			if ((detailValue == null) || (detailValue.length() == 0) || detailValue.matches("[\\s\\%]++"))
 				continue;
 			if (detailName.startsWith("ID-")) {
-				where.append(" AND (ids." + ID_TYPE_COLUMN_NAME + " LIKE '%" + EasyIO.prepareForLIKE(detailName.substring("ID-".length()).toLowerCase()) + "%')");
-				where.append(" AND (ids." + ID_VALUE_COLUMN_NAME + " LIKE '" + EasyIO.prepareForLIKE(detailValue.toLowerCase()) + "')");
+				where.append(" AND (ids." + ID_TYPE_COLUMN_NAME + " LIKE '%" + EasyIO.prepareForLIKE(this.indexCaseSensitive() ? detailName.substring("ID-".length()) : detailName.substring("ID-".length()).toLowerCase()) + "%')");
+				where.append(" AND (ids." + ID_VALUE_COLUMN_NAME + " LIKE '" + EasyIO.prepareForLIKE(this.indexCaseSensitive() ? detailValue : detailValue.toLowerCase()) + "')");
 				identifierPredicates = true;
 			}
 			else {
-				where.append(" AND (idx." + detailName + " LIKE '%" + EasyIO.prepareForLIKE(detailValue.toLowerCase()) + "%')");
+				where.append(" AND (idx." + detailName + " LIKE '%" + EasyIO.prepareForLIKE(this.indexCaseSensitive() ? detailValue : detailValue.toLowerCase()) + "%')");
 				indexPredicates = true;
 			}
 		}
@@ -2333,7 +2405,6 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 				this.type = getStringType(stringParsed);
 				String parseError = checkParsedString(this.id, this.stringPlain, stringParsed);
 				this.stringParsed = ((parseError == null) ? stringParsed : null);
-//				this.parseChecksum = ((parseError == null) ? getChecksum(this.stringParsed) : "");
 				this.parseChecksum = ((parseError == null) ? getParseChecksum(this.stringParsed) : "");
 				this.parseError = ((parseError == null) ? "" : parseError);
 			}
@@ -2347,6 +2418,22 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 				return def;
 			else return str;
 		}
+	}
+	
+	/**
+	 * Check a plain string, and possibly its parsed version, and return an
+	 * error message in case the plain string is not accepted. Returning null
+	 * indicates accepting the plain string. Note that the argument parsed
+	 * string may be null, in particular if a plain string is uploaded alone.
+	 * This default implementation does return null, sub classes are welcome
+	 * to overwrite it as needed.
+	 * @param stringId the ID of the string to check
+	 * @param stringPlain the plain string
+	 * @param stringParsed the parsed string to check against the plain version
+	 * @return an error message in case of rejection, null otherwise
+	 */
+	protected String checkPlainString(String stringId, String stringPlain, MutableAnnotation stringParsed) {
+		return null;
 	}
 	
 	/**
@@ -2401,7 +2488,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			else if (this.sqr == null)
 				return false;
 			else if (this.sqr.next()) {
-				if (this.type == 'F')
+				if (this.type == 'F') // update feed
 					this.next = new InternalPooledString(
 							this.sqr.getString(0), 
 							this.sqr.getString(1), 
@@ -2411,7 +2498,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 							Long.parseLong(this.sqr.getString(5)),
 							"D".equals(this.sqr.getString(6))
 						);
-				else if (this.type == 'R')
+				else if (this.type == 'R') // RSS feed
 					this.next = new InternalPooledString(
 							this.sqr.getString(0), 
 							Long.parseLong(this.sqr.getString(1)), 
@@ -2490,6 +2577,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	private class PooledStringLC extends PooledString {
 		private String canonicalId = null;
 		private String stringPlain = null;
+		private boolean hasStringParsed = false;
 		private String stringParsed = null;
 		private String parseChecksum = null;
 		private String parseError = null;
@@ -2524,14 +2612,18 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 				this.updateUser = ips.updateUser;
 				this.stringPlain = ips.stringPlain;
 				if (includeParse) {
-					MutableAnnotation parsedString = ((ips.stringParsed == null) ? getParsedString(ips.id) : ips.stringParsed);
-					if (parsedString != null) try {
-						StringWriter sw = new StringWriter();
-						BufferedWriter bw = new BufferedWriter(sw);
-						AnnotationUtils.writeXML(parsedString, bw);
-						bw.flush();
-						this.stringParsed = sw.toString();
+					this.hasStringParsed = true;
+					if (ips.stringParsed != null) try {
+						this.stringParsed = this.rolloutStringParsed(ips.stringParsed);
 					} catch (IOException ioe) {}
+//					MutableAnnotation stringParsed = ((ips.stringParsed == null) ? getParsedString(ips.id) : ips.stringParsed);
+//					if (stringParsed != null) try {
+//						StringWriter sw = new StringWriter();
+//						BufferedWriter bw = new BufferedWriter(sw);
+//						AnnotationUtils.writeXML(stringParsed, bw);
+//						bw.flush();
+//						this.stringParsed = sw.toString();
+//					} catch (IOException ioe) {}
 				}
 				this.parseChecksum = (((ips.parseChecksum != null) && (ips.parseChecksum.length() != 0)) ? ips.parseChecksum : null);
 			}
@@ -2540,7 +2632,17 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			return this.stringPlain;
 		}
 		public String getStringParsed() {
+			if (this.hasStringParsed && (this.stringParsed == null)) try {
+				this.stringParsed = this.rolloutStringParsed(getParsedString(this.id));
+			} catch (IOException ioe) {}
 			return this.stringParsed;
+		}
+		private String rolloutStringParsed(MutableAnnotation stringParsed) throws IOException {
+			StringWriter sw = new StringWriter();
+			BufferedWriter bw = new BufferedWriter(sw);
+			AnnotationUtils.writeXML(stringParsed, bw);
+			bw.flush();
+			return sw.toString();
 		}
 		public String getCanonicalStringID() {
 			return ((this.canonicalId == null) ? this.id : this.canonicalId);
