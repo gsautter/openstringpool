@@ -966,7 +966,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			bw.write("<" + this.stringPlainNodeType + ">" + AnnotationUtils.escapeForXml(string.stringPlain) + "</" + this.stringPlainNodeType + ">");
 			bw.newLine();
 			if (full) {
-				MutableAnnotation parsedString = ((string.stringParsed == null) ? this.getParsedString(string.id) : string.stringParsed);
+				MutableAnnotation parsedString = ((string.stringParsed == null) ? this.getStringParsed(string.id) : string.stringParsed);
 				if (parsedString != null) {
 					bw.write("<" + this.stringParsedNodeType + ">");
 					bw.newLine();
@@ -1196,6 +1196,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 				private String createDomain = null;
 				private String createUser = null;
 				private StringBuffer stringParsedBuffer = null;
+				private LinkedList stringParsedTagStack = null;
 				private MutableAnnotation stringParsed = null;
 				private String updateDomain = null;
 				private String updateUser = null;
@@ -1205,6 +1206,25 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 						String type = xmlGrammar.getType(token);
 						type = type.substring(type.indexOf(':') + 1);
 						boolean isEndTag = xmlGrammar.isEndTag(token);
+						
+						//	need to check stack first in case parsed string contains any of our functional tags
+						if ((this.stringParsedBuffer != null) && (this.stringParsedTagStack != null)) {
+							if (isEndTag) {
+								if ((this.stringParsedTagStack.size() != 0) && this.stringParsedTagStack.getLast().equals(type)) {
+									this.stringParsedBuffer.append(token);
+									this.stringParsedTagStack.removeLast();
+									return;
+								}
+							}
+							else {
+								this.stringParsedBuffer.append(token);
+								if (!xmlGrammar.isSingularTag(token))
+									this.stringParsedTagStack.addLast(type);
+								return;
+							}
+						}
+						
+						//	start or end of pooled string proper
 						if (stringNodeType.equals(type)) {
 							if (isEndTag) {
 								if (this.stringPlain != null) {
@@ -1239,28 +1259,38 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 							this.stringPlainBuffer = null;
 							this.stringPlain = null;
 							this.stringParsedBuffer = null;
+							this.stringParsedTagStack = null;
 							this.stringParsed = null;
+							return;
 						}
-						else if (stringPlainNodeType.equals(type)) {
+						
+						//	start or end of plain string
+						if (stringPlainNodeType.equals(type)) {
 							if (isEndTag) {
 								if (this.stringPlainBuffer.length() != 0)
 									this.stringPlain = this.stringPlainBuffer.toString();
 								this.stringPlainBuffer = null;
 							}
 							else this.stringPlainBuffer = new StringBuffer();
+							return;
 						}
-						else if (stringParsedNodeType.equals(type)) {
+						
+						//	start or end of parsed string
+						if (stringParsedNodeType.equals(type)) {
 							if (isEndTag) {
 								if (this.stringParsedBuffer.length() != 0) {
 									this.stringParsed = Gamta.newDocument(Gamta.newTokenSequence(null, Gamta.INNER_PUNCTUATION_TOKENIZER));
 									SgmlDocumentReader.readDocument(new StringReader(this.stringParsedBuffer.toString()), this.stringParsed);
 								}
 								this.stringParsedBuffer = null;
+								this.stringParsedTagStack = null;
 							}
-							else this.stringParsedBuffer = new StringBuffer();
+							else {
+								this.stringParsedBuffer = new StringBuffer();
+								this.stringParsedTagStack = new LinkedList();
+							}
+							return;
 						}
-						else if (this.stringParsedBuffer != null)
-							this.stringParsedBuffer.append(token);
 					}
 					else if (this.stringPlainBuffer != null)
 						this.stringPlainBuffer.append(xmlGrammar.unescape(token));
@@ -1721,7 +1751,14 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		out.close();
 	}
 	
-	private MutableAnnotation getParsedString(String id) {
+	/**
+	 * Retrieve the parsed version of a pooled string. If there is no parsed
+	 * version for the pooled string with the argument ID, this method returns
+	 * null.
+	 * @param id the ID of the pooled string whose parsed version to retrieve
+	 * @return the parsed string
+	 */
+	public MutableAnnotation getStringParsed(String id) {
 		String primaryFolderName = id.substring(0, 2);
 		String secondaryFolderName = id.substring(2, 4);
 		try {
@@ -2633,7 +2670,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		}
 		public String getStringParsed() {
 			if (this.hasStringParsed && (this.stringParsed == null)) try {
-				this.stringParsed = this.rolloutStringParsed(getParsedString(this.id));
+				this.stringParsed = this.rolloutStringParsed(StringPoolServlet.this.getStringParsed(this.id));
 			} catch (IOException ioe) {}
 			return this.stringParsed;
 		}

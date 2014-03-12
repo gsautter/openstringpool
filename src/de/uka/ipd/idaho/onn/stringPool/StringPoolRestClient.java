@@ -30,6 +30,7 @@ import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
+import java.util.LinkedList;
 
 import de.uka.ipd.idaho.gamta.AnnotationUtils;
 import de.uka.ipd.idaho.htmlXmlUtil.TokenReceiver;
@@ -171,6 +172,7 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 							private StringBuffer stringPlainBuffer = null;
 							private String stringPlain = null;
 							private StringBuffer stringParsedBuffer = null;
+							private LinkedList stringParsedTagStack = null;
 							private String stringParsed = null;
 							private PooledStringRC ps = null;
 							public void close() throws IOException {}
@@ -179,6 +181,25 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 									String type = xmlGrammar.getType(token);
 									type = type.substring(type.indexOf(':') + 1);
 									boolean isEndTag = xmlGrammar.isEndTag(token);
+									
+									//	need to check stack first in case parsed string contains any of our functional tags
+									if ((this.stringParsedBuffer != null) && (this.stringParsedTagStack != null)) {
+										if (isEndTag) {
+											if ((this.stringParsedTagStack.size() != 0) && this.stringParsedTagStack.getLast().equals(type)) {
+												this.stringParsedBuffer.append(token);
+												this.stringParsedTagStack.removeLast();
+												return;
+											}
+										}
+										else {
+											this.stringParsedBuffer.append(token);
+											if (!xmlGrammar.isSingularTag(token))
+												this.stringParsedTagStack.addLast(type);
+											return;
+										}
+									}
+									
+									//	start or end of pooled string proper
 									if (stringNodeType.equals(type)) {
 										if (isEndTag) {
 											if (this.ps != null) {
@@ -237,26 +258,36 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 										this.stringPlainBuffer = null;
 										this.stringPlain = null;
 										this.stringParsedBuffer = null;
+										this.stringParsedTagStack = null;
 										this.stringParsed = null;
+										return;
 									}
-									else if (stringPlainNodeType.equals(type)) {
+									
+									//	start or end of plain string
+									if (stringPlainNodeType.equals(type)) {
 										if (isEndTag) {
 											if (this.stringPlainBuffer.length() != 0)
 												this.stringPlain = this.stringPlainBuffer.toString();
 											this.stringPlainBuffer = null;
 										}
 										else this.stringPlainBuffer = new StringBuffer();
+										return;
 									}
-									else if (stringParsedNodeType.equals(type)) {
+									
+									//	start or end of parsed string
+									if (stringParsedNodeType.equals(type)) {
 										if (isEndTag) {
 											if (this.stringParsedBuffer.length() != 0)
 												this.stringParsed = this.stringParsedBuffer.toString();
 											this.stringParsedBuffer = null;
+											this.stringParsedTagStack = null;
 										}
-										else this.stringParsedBuffer = new StringBuffer();
+										else {
+											this.stringParsedBuffer = new StringBuffer();
+											this.stringParsedTagStack = new LinkedList();
+										}
+										return;
 									}
-									else if (this.stringParsedBuffer != null)
-										this.stringParsedBuffer.append(token);
 								}
 								else if (this.stringPlainBuffer != null)
 									this.stringPlainBuffer.append(xmlGrammar.unescape(token));
