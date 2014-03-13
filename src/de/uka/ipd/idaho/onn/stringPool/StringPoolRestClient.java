@@ -368,6 +368,7 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 		public PooledString getNextString() {
 			PooledString next = this.next;
 			this.next = null;
+			this.hasNextString();
 			return next;
 		}
 		protected void finalize() throws Throwable {
