@@ -153,22 +153,25 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 	}
 	
 	private class ThreadedPSI implements PooledStringIterator {
+		private final boolean debugThreading = false;
 		private IOException ioe;
 		private PooledString next;
 		private Thread parser;
 		private Object parserLock = new Object();
-		private ThreadedPSI(final Reader r) {
-			System.out.println("StringPoolRestClient: creating threaded iterator");
+		private Reader reader;
+		private ThreadedPSI(Reader r) {
+			this.reader = r;
+			if (debugThreading) System.out.println("StringPoolRestClient: creating threaded iterator");
 			this.parser = new Thread() {
 				public void run() {
-					System.out.println("StringPoolRestClient: parser thread starting to run");
+					if (debugThreading) System.out.println("StringPoolRestClient: parser thread starting to run");
 					synchronized(parserLock) {
-						System.out.println("StringPoolRestClient: parser thread waking up creator");
+						if (debugThreading) System.out.println("StringPoolRestClient: parser thread waking up creator");
 						parserLock.notify();
-						System.out.println("StringPoolRestClient: parser thread creator woken up");
+						if (debugThreading) System.out.println("StringPoolRestClient: parser thread creator woken up");
 					}
 					try {
-						xmlParser.stream(r, new TokenReceiver() {
+						xmlParser.stream(reader, new TokenReceiver() {
 							private StringBuffer stringPlainBuffer = null;
 							private String stringPlain = null;
 							private StringBuffer stringParsedBuffer = null;
@@ -207,16 +210,16 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 												this.ps.stringParsed = this.stringParsed;
 											}
 											synchronized(parserLock) {
-//												System.out.println("StringPoolRestClient: parser thread got next");
+												if (debugThreading) System.out.println("StringPoolRestClient: parser thread got next");
 												next = this.ps;
 												this.ps = null;
-//												System.out.println("StringPoolRestClient: parser thread waking up requester");
+												if (debugThreading) System.out.println("StringPoolRestClient: parser thread waking up requester");
 												parserLock.notify();
-//												System.out.println("StringPoolRestClient: parser thread woke up requester");
+												if (debugThreading) System.out.println("StringPoolRestClient: parser thread woke up requester");
 												try {
-//													System.out.println("StringPoolRestClient: parser thread going to sleep");
+													if (debugThreading) System.out.println("StringPoolRestClient: parser thread going to sleep");
 													parserLock.wait();
-//													System.out.println("StringPoolRestClient: parser thread woken up by requester");
+													if (debugThreading) System.out.println("StringPoolRestClient: parser thread woken up by requester");
 												} catch (InterruptedException ie) {}
 											}
 										}
@@ -241,16 +244,16 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 											this.ps.updated = "true".equalsIgnoreCase(stringAttributes.getAttribute(UPDATED_ATTRIBUTE));
 											if (xmlGrammar.isSingularTag(token)) {
 												synchronized(parserLock) {
-//													System.out.println("StringPoolRestClient: parser thread got next");
+													if (debugThreading) System.out.println("StringPoolRestClient: parser thread got next");
 													next = this.ps;
 													this.ps = null;
-//													System.out.println("StringPoolRestClient: parser thread waking up requester");
+													if (debugThreading) System.out.println("StringPoolRestClient: parser thread waking up requester");
 													parserLock.notify();
-//													System.out.println("StringPoolRestClient: parser thread woke up requester");
+													if (debugThreading) System.out.println("StringPoolRestClient: parser thread woke up requester");
 													try {
-//														System.out.println("StringPoolRestClient: parser thread going to sleep");
+														if (debugThreading) System.out.println("StringPoolRestClient: parser thread going to sleep");
 														parserLock.wait();
-//														System.out.println("StringPoolRestClient: parser thread woken up by requester");
+														if (debugThreading) System.out.println("StringPoolRestClient: parser thread woken up by requester");
 													} catch (InterruptedException ie) {}
 												}
 											}
@@ -295,20 +298,20 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 									this.stringParsedBuffer.append(token.trim());
 							}
 						});
-						r.close();
+						reader.close();
 					}
 					catch (IOException tioe) {
 						ioe = tioe;
 					}
 					finally {
 						synchronized(parserLock) {
-//							System.out.println("StringPoolRestClient: parser thread waking up requester at eand of input");
+							if (debugThreading) System.out.println("StringPoolRestClient: parser thread waking up requester at and of input");
 							parserLock.notify();
-//							System.out.println("StringPoolRestClient: parser thread woke up requester at end of input");
+							if (debugThreading) System.out.println("StringPoolRestClient: parser thread woke up requester at end of input");
 							parser = null;
 						}
 						try {
-							r.close();
+							reader.close();
 						}
 						catch (IOException tioe) {
 							ioe = tioe;
@@ -316,15 +319,15 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 					}
 				}
 			};
-//			System.out.println("StringPoolRestClient: parser thread created");
+			if (debugThreading) System.out.println("StringPoolRestClient: parser thread created");
 			synchronized(this.parserLock) {
-//				System.out.println("StringPoolRestClient: starting parser thread");
+				if (debugThreading) System.out.println("StringPoolRestClient: starting parser thread");
 				this.parser.start();
-//				System.out.println("StringPoolRestClient: parser thread started");
+				if (debugThreading) System.out.println("StringPoolRestClient: parser thread started");
 				try {
-//					System.out.println("StringPoolRestClient: waiting for parser thread");
+					if (debugThreading) System.out.println("StringPoolRestClient: waiting for parser thread");
 					this.parserLock.wait();
-//					System.out.println("StringPoolRestClient: parser thread running");
+					if (debugThreading) System.out.println("StringPoolRestClient: parser thread running");
 				} catch (InterruptedException ie) {}
 			}
 		}
@@ -337,21 +340,41 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 			synchronized(this.parserLock) {
 				if (parser == null)
 					return false;
-//				System.out.println("StringPoolRestClient: waking up parser thread");
+				if (debugThreading) System.out.println("StringPoolRestClient: waking up parser thread");
 				this.parserLock.notify();
-//				System.out.println("StringPoolRestClient: parser thread woken up");
+				if (debugThreading) System.out.println("StringPoolRestClient: parser thread woken up");
 				try {
-//					System.out.println("StringPoolRestClient: waiting on parser thread to produce next");
+					if (debugThreading) System.out.println("StringPoolRestClient: waiting on parser thread to produce next");
 					this.parserLock.wait();
-//					System.out.println("StringPoolRestClient: parser thread returned from quest for next");
+					if (debugThreading) System.out.println("StringPoolRestClient: parser thread returned from quest for next");
 				} catch (InterruptedException ie) {}
-				return (this.next != null);
 			}
+			if (this.next == null) {
+				while (this.parser != null)
+					synchronized(this.parserLock) {
+						if (debugThreading) System.out.println("StringPoolRestClient: waking up parser thread to terminate");
+						this.parserLock.notify();
+						if (debugThreading) System.out.println("StringPoolRestClient: parser thread woken up to terminate");
+						try {
+							if (debugThreading) System.out.println("StringPoolRestClient: waiting on parser thread to terminate");
+							this.parserLock.wait();
+							if (debugThreading) System.out.println("StringPoolRestClient: parser thread terminated");
+						} catch (InterruptedException ie) {}
+					}
+				return false;
+			}
+			else return true;
 		}
 		public PooledString getNextString() {
 			PooledString next = this.next;
 			this.next = null;
 			return next;
+		}
+		protected void finalize() throws Throwable {
+			if (this.parser == null)
+				return;
+			while (this.hasNextString())
+				this.getNextString();
 		}
 	}
 	
