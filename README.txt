@@ -39,6 +39,15 @@ This is the reason the Ant build script generates a ZIP rather than a WAR file.
 
 
 
+DEPENDENCIES
+
+OpenStringPool builds on other open source projects; the JAR files these projects build into are included in the "lib" folder for convenience.
+In addition, the Ant build script checks if these projects are present in your workspace, and if so, uses the recent builds found in their "dist" folders.
+
+- idaho-core (http://code.google.com/p/idaho-core/)
+
+
+
 SYSTEM REQUIREMENTS
 
 Java Runtime Environment 1.5 or higher, Sun/Oracle JRE recommended
