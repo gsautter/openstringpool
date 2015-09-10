@@ -259,7 +259,16 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			}
 			else parsedStringFolderName = (parsedStringFolderName + "s");
 		}
-		this.parsedStringsFolder = new File(this.dataFolder, parsedStringFolderName);
+		
+		//	allow folder for parses to be in other location, outside webapp
+		parsedStringFolderName = this.getSetting("parsedStringFolder", parsedStringFolderName);
+		while (parsedStringFolderName.startsWith("./"))
+			parsedStringFolderName = parsedStringFolderName.substring("./".length());
+		
+		//	create folder for parses (relative path below data folder, absolute path wherever)
+		if ((parsedStringFolderName.indexOf(":/") == -1) && !parsedStringFolderName.startsWith("/"))
+			this.parsedStringsFolder = new File(this.dataFolder, parsedStringFolderName);
+		else this.parsedStringsFolder = new File(parsedStringFolderName);
 		this.parsedStringsFolder.mkdirs();
 		
 		//	update table names

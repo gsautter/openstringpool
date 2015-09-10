@@ -1,6 +1,6 @@
 // other settings (fill in the angle-bracketed parts with your actual data, also removing the angle brackets)
 accessUrl = "http://<serverName>:<portOfTomcat>/<String Pool webapp name>/sp";
-adminPasscode = "<yourNodePasscode>";
+adminPasscode = "<yourNodeAdminPasscode>";
 domainName = "<yourStringPoolDomainName>";
 
 // EXAMPLE for other settings
@@ -8,7 +8,10 @@ domainName = "<yourStringPoolDomainName>";
 //accessUrl = "http://plazi2.cs.umb.edu:8080/StringPool/sp";
 //adminPasscode = "<noneOfYourBusiness>";
 
-// Stylesheet file required for admin page
+// storage location for parsed strings (relative or absolute, defaults to sub folder of webapp data folder)
+//parsedStringFolder = "<yourParsedStringFolder>";
+
+// stylesheet file required for admin page
 cssNames = "onnNodeAdminPage.3.css";
 
 // administration base page
