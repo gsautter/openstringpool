@@ -85,6 +85,8 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	protected static final String PARSED_STRING_TABLE_NAME_SUFFIX = "Data";
 	protected static final String STRING_ID_COLUMN_NAME = "StringId";
 	protected static final String STRING_ID_HASH_COLUMN_NAME = "IdHash"; // int hash of the ID string, speeding up joins with index table
+	protected static final String STRING_CLUSTER_ID_COLUMN_NAME = "ClusterId";
+	protected static final String STRING_CLUSTER_ID_HASH_COLUMN_NAME = "ClusterIdHash";
 	protected static final String STRING_TYPE_COLUMN_NAME = "StringType";
 	private static final int STRING_TYPE_COLUMN_LENGTH = 32;
 	protected static final String PARSE_CHECKSUM_COLUMN_NAME = "ParseChecksum";
@@ -106,7 +108,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	private static final int USER_COLUMN_LENGTH = 64;
 	
 	protected static final String STRING_TEXT_COLUMN_NAME = "String";
-	private static final int STRING_TEXT_COLUMN_LENGTH = 1672; // fills up records to 2048 bytes
+	private static final int STRING_TEXT_COLUMN_LENGTH = 1636; // fills up records to 2048 bytes
 	
 	//	index table
 	protected static final String PARSED_STRING_INDEX_TABLE_NAME_SUFFIX = "Index";
@@ -276,15 +278,17 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		this.parsedStringIndexTableName = (externalDataName + PARSED_STRING_INDEX_TABLE_NAME_SUFFIX);
 		this.parsedStringHistoryTableName = (externalDataName + PARSED_STRING_HISTORY_TABLE_NAME_SUFFIX);
 		
-		// get and check database connection
+		//	get and check database connection
 		this.io = WebAppHost.getInstance(this.getServletContext()).getIoProvider();
 		if (!this.io.isJdbcAvailable())
 			throw new RuntimeException("ParsedStringPool: Cannot work without database access.");
 		
-		// produce data table
+		//	create data table
 		TableDefinition dtd = new TableDefinition(this.parsedStringTableName);
 		dtd.addColumn(STRING_ID_COLUMN_NAME, TableDefinition.VARCHAR_DATATYPE, 32);
 		dtd.addColumn(STRING_ID_HASH_COLUMN_NAME, TableDefinition.INT_DATATYPE, 0);
+		dtd.addColumn(STRING_CLUSTER_ID_COLUMN_NAME, TableDefinition.VARCHAR_DATATYPE, 32);
+		dtd.addColumn(STRING_CLUSTER_ID_HASH_COLUMN_NAME, TableDefinition.INT_DATATYPE, 0);
 		dtd.addColumn(CANONICAL_STRING_ID_COLUMN_NAME, TableDefinition.VARCHAR_DATATYPE, 32);
 		dtd.addColumn(CANONICAL_STRING_ID_HASH_COLUMN_NAME, TableDefinition.INT_DATATYPE, 0);
 		dtd.addColumn(STRING_TYPE_COLUMN_NAME, TableDefinition.VARCHAR_DATATYPE, STRING_TYPE_COLUMN_LENGTH);
@@ -306,11 +310,13 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		//	index main table
 		this.io.indexColumn(this.parsedStringTableName, STRING_ID_COLUMN_NAME);
 		this.io.indexColumn(this.parsedStringTableName, STRING_ID_HASH_COLUMN_NAME);
+		this.io.indexColumn(this.parsedStringTableName, STRING_CLUSTER_ID_COLUMN_NAME);
+		this.io.indexColumn(this.parsedStringTableName, STRING_CLUSTER_ID_HASH_COLUMN_NAME);
 		this.io.indexColumn(this.parsedStringTableName, CANONICAL_STRING_ID_COLUMN_NAME);
 		this.io.indexColumn(this.parsedStringTableName, CANONICAL_STRING_ID_HASH_COLUMN_NAME);
 		this.io.indexColumn(this.parsedStringTableName, LOCAL_UPDATE_TIME_COLUMN_NAME);
 		
-		// produce index table
+		//	create index table
 		TableDefinition itd = new TableDefinition(this.parsedStringIndexTableName);
 		itd.addColumn(STRING_ID_COLUMN_NAME, TableDefinition.VARCHAR_DATATYPE, 32);
 		itd.addColumn(STRING_ID_HASH_COLUMN_NAME, TableDefinition.INT_DATATYPE, 0);
@@ -325,7 +331,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			else throw new RuntimeException("ParsedStringPool: Cannot work without database access.");
 		}
 		
-		// produce history table
+		//	create history table
 		TableDefinition htd = new TableDefinition(this.parsedStringHistoryTableName);
 		htd.addColumn(STRING_ID_COLUMN_NAME, TableDefinition.VARCHAR_DATATYPE, 32);
 		htd.addColumn(STRING_ID_HASH_COLUMN_NAME, TableDefinition.INT_DATATYPE, 0);
@@ -338,7 +344,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		if (!this.io.ensureTable(htd, true))
 			throw new RuntimeException("ParsedStringPool: Cannot work without database access.");
 		
-		//	produce external identifier table
+		//	create external identifier table
 		TableDefinition eitd = new TableDefinition(this.parsedStringIdentifierTableName);
 		eitd.addColumn(STRING_ID_COLUMN_NAME, TableDefinition.VARCHAR_DATATYPE, 32);
 		eitd.addColumn(STRING_ID_HASH_COLUMN_NAME, TableDefinition.INT_DATATYPE, 0);
@@ -353,8 +359,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		this.io.indexColumn(this.parsedStringIdentifierTableName, ID_TYPE_COLUMN_NAME);
 		this.io.indexColumn(this.parsedStringIdentifierTableName, ID_VALUE_COLUMN_NAME);
 		
-		
-		//	clean up legacy data
+		//	clean up legacy duplicate data
 		String cleanupGetterQuery = "SELECT " + STRING_ID_COLUMN_NAME + ", min(" + CREATE_TIME_COLUMN_NAME + ")" +
 				" FROM " + this.parsedStringTableName + 
 				" GROUP BY " + STRING_ID_COLUMN_NAME + 
@@ -407,7 +412,235 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		this.apiCallCountCount = Integer.parseInt(this.getSetting("apiCallCountCount", "0"));
 		this.apiCallCountClusterCount = Integer.parseInt(this.getSetting("apiCallCountClusterCount", "0"));
 		this.apiCallCountStats = Integer.parseInt(this.getSetting("apiCallCountStats", "0"));
+//		
+//		//	start thread updating string cluster IDs and canonical string IDs
+//		Thread stringClusterIdUpdater = new Thread() {
+//			public void run() {
+//				updateStringClusterIDs();
+//			}
+//		};
+//		stringClusterIdUpdater.start();
 	}
+//	
+//	private void updateStringClusterIDs() {
+//		
+//		//	check oldest 1,000 strings for cluster ID
+//		HashMap stringIDsToStringClusterIDs = new HashMap();
+//		String lastCheckedLocalUpdateTime = "0";
+//		String emptyStringClusterIdQuery = "SELECT " + STRING_ID_COLUMN_NAME + ", " + STRING_TEXT_COLUMN_NAME + ", " + LOCAL_UPDATE_TIME_ATTRIBUTE + 
+//				" FROM " + this.parsedStringTableName +
+//				" WHERE " + STRING_CLUSTER_ID_COLUMN_NAME + " = ''" + 
+//					" AND " + STRING_CLUSTER_ID_HASH_COLUMN_NAME + " = 0" + 
+//					" AND " + LOCAL_UPDATE_TIME_COLUMN_NAME + " >= " + lastCheckedLocalUpdateTime + 
+//				" ORDER BY " + LOCAL_UPDATE_TIME_COLUMN_NAME + // we actually need oldest first, so if something fails during feed-based update, the last received is older than the first missing.
+//				";";
+//		SqlQueryResult sqr = null;
+//		try {
+//			sqr = this.io.executeSelectQuery(emptyStringClusterIdQuery, false);
+//			for (int count = 0; sqr.next(); count++) {
+//				if (count == 1000)
+//					break; // that's but enough for the initial round, no need to read it all
+//				String stringId = sqr.getString(0);
+//				String string = sqr.getString(1);
+//				lastCheckedLocalUpdateTime = sqr.getString(2);
+//				try {
+//					String stringClusterId = this.getStringId(this.getClusteringString(string));
+//					if (!stringId.equals(stringClusterId)) // 
+//						stringIDsToStringClusterIDs.put(stringId, stringClusterId);
+//				} catch (IOException e) { /* never gonna happen, but Java don't know */ }
+//			}
+//		}
+//		catch (SQLException sqle) {
+//			System.out.println("ParsedStringPool: " + sqle.getClass().getName() + " (" + sqle.getMessage() + ") while loading strings without cluster ID.");
+//			System.out.println("  query was " + emptyStringClusterIdQuery);
+//		}
+//		finally {
+//			if (sqr !=  null)
+//				sqr.close();
+//		}
+//		
+//		//	set string cluster IDs where missing
+//		int updateStringCount = 0;
+//		while (stringIDsToStringClusterIDs.size() != 0) {
+//			
+//			//	set the string cluster IDs we already have
+//			for (Iterator sidit = stringIDsToStringClusterIDs.keySet().iterator(); sidit.hasNext();) {
+//				String stringId = ((String) sidit.next());
+//				String stringClusterId = ((String) stringIDsToStringClusterIDs.get(stringId));
+//				String setStringClusterIdQuery = "UPDATE " + this.parsedStringTableName +
+//						" SET " + STRING_CLUSTER_ID_COLUMN_NAME + " = '" + EasyIO.sqlEscape(stringClusterId) + "'" + 
+//							", " + STRING_CLUSTER_ID_HASH_COLUMN_NAME + " = " + stringClusterId.hashCode() + 
+//						" WHERE " + STRING_ID_COLUMN_NAME + " = '" + EasyIO.sqlEscape(stringId) + "'" + 
+//							" AND " + STRING_ID_HASH_COLUMN_NAME + " = " + stringId.hashCode() + 
+//						";";
+//				try {
+//					updateStringCount += this.io.executeUpdateQuery(setStringClusterIdQuery);
+//				}
+//				catch (SQLException sqle) {
+//					System.out.println("ParsedStringPool: " + sqle.getClass().getName() + " (" + sqle.getMessage() + ") while filling in missing cluster IDs.");
+//					System.out.println("  query was " + setStringClusterIdQuery);
+//				}
+//			}
+//			
+//			/* update getter query so we keep on checking from last update
+//			 * timestamp onwards - important in implementations where string
+//			 * cluster ID differs from string ID proper only in few cases, as
+//			 * without the incrementing timestamp, we'd end up checking the
+//			 * same strings time and again, which in turn would incur havoc in
+//			 * the final equality update */
+//			stringIDsToStringClusterIDs.clear();
+//			emptyStringClusterIdQuery = "SELECT " + STRING_ID_COLUMN_NAME + ", " + STRING_TEXT_COLUMN_NAME + ", " + LOCAL_UPDATE_TIME_ATTRIBUTE + 
+//					" FROM " + this.parsedStringTableName +
+//					" WHERE " + STRING_CLUSTER_ID_COLUMN_NAME + " = ''" + 
+//						" AND " + STRING_CLUSTER_ID_HASH_COLUMN_NAME + " = 0" + 
+//						" AND " + LOCAL_UPDATE_TIME_COLUMN_NAME + " >= " + lastCheckedLocalUpdateTime + 
+//					" ORDER BY " + LOCAL_UPDATE_TIME_COLUMN_NAME + // we actually need oldest first, so if something fails during feed-based update, the last received is older than the first missing.
+//					";";
+//			
+//			//	get next 10,000 strings with missing cluster ID
+//			sqr = null;
+//			try {
+//				sqr = this.io.executeSelectQuery(emptyStringClusterIdQuery, false);
+//				for (int count = 0; sqr.next(); count++) {
+//					if (count == 10000)
+//						break; // let's not handle more than 10,000 at a time to keep memory consumption at bay
+//					String stringId = sqr.getString(0);
+//					String string = sqr.getString(1);
+//					lastCheckedLocalUpdateTime = sqr.getString(2);
+//					try {
+//						String stringClusterId = this.getStringId(this.getClusteringString(string));
+//						if (!stringId.equals(stringClusterId)) // 
+//							stringIDsToStringClusterIDs.put(stringId, stringClusterId);
+//					} catch (IOException e) { /* never gonna happen, but Java don't know */ }
+//				}
+//			}
+//			catch (SQLException sqle) {
+//				System.out.println("ParsedStringPool: " + sqle.getClass().getName() + " (" + sqle.getMessage() + ") while loading strings without cluster ID.");
+//				System.out.println("  query was " + emptyStringClusterIdQuery);
+//			}
+//			finally {
+//				if (sqr !=  null)
+//					sqr.close();
+//			}
+//			
+//			//	take a breath ...
+//			try {
+//				Thread.sleep(1000 * 10);
+//			} catch (InterruptedException ie) {}
+//		}
+//		
+//		//	fill in missing string cluster IDs where identical to string ID
+//		String fillStringClusterIdQuery = "UPDATE " + this.parsedStringTableName +
+//				" SET " + STRING_CLUSTER_ID_COLUMN_NAME + " = " + STRING_ID_COLUMN_NAME + 
+//					", " + STRING_CLUSTER_ID_HASH_COLUMN_NAME + " = " + STRING_ID_HASH_COLUMN_NAME + 
+//				" WHERE " + STRING_CLUSTER_ID_COLUMN_NAME + " = ''" + 
+//					" AND " + STRING_CLUSTER_ID_HASH_COLUMN_NAME + " = 0" + 
+//				";";
+//		try {
+//			updateStringCount += this.io.executeUpdateQuery(fillStringClusterIdQuery);
+//		}
+//		catch (SQLException sqle) {
+//			System.out.println("ParsedStringPool: " + sqle.getClass().getName() + " (" + sqle.getMessage() + ") while filling in missing cluster IDs.");
+//			System.out.println("  query was " + fillStringClusterIdQuery);
+//		}
+//		
+//		//	anything updated?
+//		if (updateStringCount == 0)
+//			return;
+//		
+//		//	get distinct cluster IDs
+//		ArrayList stringClusterIDs = new ArrayList();
+//		String getStringClusterIdQuery = "SELECT DISTINCT " + STRING_CLUSTER_ID_COLUMN_NAME + 
+//				" FROM " + this.parsedStringTableName +
+//				";";
+//		sqr = null;
+//		try {
+//			sqr = this.io.executeSelectQuery(getStringClusterIdQuery, false);
+//			while (sqr.next())
+//				stringClusterIDs.add(sqr.getString(0));
+//		}
+//		catch (SQLException sqle) {
+//			System.out.println("ParsedStringPool: " + sqle.getClass().getName() + " (" + sqle.getMessage() + ") while loading cluster IDs.");
+//			System.out.println("  query was " + getStringClusterIdQuery);
+//		}
+//		finally {
+//			if (sqr !=  null)
+//				sqr.close();
+//		}
+//		
+//		//	handle individual cluster IDs
+//		for (int i = 0; i < stringClusterIDs.size(); i++) {
+//			String stringClusterId = ((String) stringClusterIDs.get(i));
+//			
+//			//	get string IDs in cluster
+//			String getClusterStringsQuery = "SELECT " + STRING_ID_COLUMN_NAME + ", " + CANONICAL_STRING_ID_COLUMN_NAME + 
+//					" FROM " + this.parsedStringTableName +
+//					" WHERE " + STRING_CLUSTER_ID_COLUMN_NAME + " = '" + EasyIO.sqlEscape(stringClusterId) + "'" + 
+//						" AND " + STRING_CLUSTER_ID_HASH_COLUMN_NAME + " = " + stringClusterId.hashCode() + 
+//					" ORDER BY " + LOCAL_UPDATE_TIME_COLUMN_NAME + // we actually need oldest first, so if something fails during feed-based update, the last received is older than the first missing.
+//					";";
+//			
+//			String oldestStringId = null;
+//			String oldestCanonicalStringId = null;
+//			int stringClusterSize = 0;
+//			sqr = null;
+//			try {
+//				sqr = this.io.executeSelectQuery(getClusterStringsQuery, false);
+//				while (sqr.next()) {
+//					stringClusterSize++;
+//					String stringId = sqr.getString(0);
+//					if (oldestStringId == null)
+//						oldestStringId = stringId;
+//					String canonicalStringId = sqr.getString(1);
+//					if ((oldestCanonicalStringId == null) && !"".equals(canonicalStringId) && !stringId.equals(canonicalStringId))
+//						oldestCanonicalStringId = canonicalStringId;
+//				}
+//			}
+//			catch (SQLException sqle) {
+//				System.out.println("ParsedStringPool: " + sqle.getClass().getName() + " (" + sqle.getMessage() + ") while loading cluster strings.");
+//				System.out.println("  query was " + getClusterStringsQuery);
+//				stringClusterSize = 0; // no use updating in face of error
+//			}
+//			finally {
+//				if (sqr !=  null)
+//					sqr.close();
+//			}
+//			
+//			//	anything to update?
+//			if (stringClusterSize < 2)
+//				continue;
+//			
+//			/* set canonical string ID of whole cluster to oldest canonical
+//			 * string ID in cluster that differs from string ID proper - if
+//			 * latter doesn't exist, set canonical string ID to oldest string
+//			 * ID in cluster */
+//			String canonicalStringId = ((oldestCanonicalStringId == null) ? oldestStringId : oldestCanonicalStringId);
+//			
+//			//	also set update time and local update time so changes replicate
+//			long updateTime = System.currentTimeMillis();
+//			
+//			//	set canonical string ID
+//			String setStringClusterIdQuery = "UPDATE " + this.parsedStringTableName +
+//					" SET " + CANONICAL_STRING_ID_COLUMN_NAME + " = '" + EasyIO.sqlEscape(canonicalStringId) + "'" + 
+//						", " + CANONICAL_STRING_ID_HASH_COLUMN_NAME + " = " + canonicalStringId.hashCode() + 
+//						", " + UPDATE_TIME_COLUMN_NAME + " = " + updateTime + 
+//						", " + LOCAL_UPDATE_TIME_COLUMN_NAME + " = " + updateTime + 
+//						", " + UPDATE_DOMAIN_COLUMN_NAME + " = '" + EasyIO.sqlEscape(this.domainName) + "'" +
+//						", " + LOCAL_UPDATE_DOMAIN_COLUMN_NAME + " = '" + EasyIO.sqlEscape(this.domainName) + "'" +
+//					" WHERE " + STRING_CLUSTER_ID_COLUMN_NAME + " = '" + EasyIO.sqlEscape(stringClusterId) + "'" + 
+//						" AND " + STRING_CLUSTER_ID_HASH_COLUMN_NAME + " = " + stringClusterId.hashCode() + 
+//						" AND " + CANONICAL_STRING_ID_COLUMN_NAME + " <> '" + EasyIO.sqlEscape(canonicalStringId) + "'" + 
+//						" AND " + CANONICAL_STRING_ID_HASH_COLUMN_NAME + " <> " + canonicalStringId.hashCode() + 
+//					";";
+//			try {
+//				this.io.executeUpdateQuery(setStringClusterIdQuery);
+//			}
+//			catch (SQLException sqle) {
+//				System.out.println("ParsedStringPool: " + sqle.getClass().getName() + " (" + sqle.getMessage() + ") while updating canonical IDs for cluster '" + stringClusterId + "'.");
+//				System.out.println("  query was " + setStringClusterIdQuery);
+//			}
+//		}
+//	}
 	
 	/**
 	 * Add sub class specific data columns to index table. If a sub class wants
@@ -597,8 +830,15 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			if (feedString == null)
 				continue;
 			
-			//	create new or updated string object ...
-			InternalPooledString updateString = new InternalPooledString(feedString.createTime, strings[s].createDomain, strings[s].createUser, feedString.updateTime, strings[s].updateDomain, strings[s].updateUser, System.currentTimeMillis(), feedString.canonicalId, feedString.deleted, strings[s].stringPlain, strings[s].stringParsed);
+			//	check for clustering ...
+			String canonicalStringId = feedString.canonicalId;
+			if (canonicalStringId == null) {
+				String clusterId = this.getStringId(this.getClusteringString(feedString.stringPlain));
+				canonicalStringId = this.getCanonicalStringId(clusterId);
+			}
+			
+			//	... create new or updated string object ...
+			InternalPooledString updateString = new InternalPooledString(feedString.createTime, strings[s].createDomain, strings[s].createUser, feedString.updateTime, strings[s].updateDomain, strings[s].updateUser, System.currentTimeMillis(), canonicalStringId, feedString.deleted, strings[s].stringPlain, strings[s].stringParsed);
 			
 			//	... and store it
 			this.storeString(updateString, dataNodeName, ("FEED:" + dataNodeName), updateStringIds.contains(feedString.id));
@@ -1156,7 +1396,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 				bw.write("<" + this.stringNodeType);
 				bw.write(" " + STRING_ID_ATTRIBUTE + "=\"" + string.id + "\"");
 				if (string.parseError.length() != 0)
-					bw.write(" " + PARSE_ERROR_ATTRIBUTE + "=\"" + string.parseError + "\"");
+					bw.write(" " + PARSE_ERROR_ATTRIBUTE + "=\"" + AnnotationUtils.escapeForXml(string.parseError) + "\"");
 				else if (string.parseChecksum.length() != 0)
 					bw.write(" " + PARSE_CHECKSUM_ATTRIBUTE + "=\"" + string.parseChecksum + "\"");
 				bw.write(" " + CREATE_TIME_ATTRIBUTE + "=\"" + TIMESTAMP_DATE_FORMAT.format(new Date(string.createTime)) + "\"");
@@ -1329,7 +1569,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			if (updateString.parseError.length() != 0) {
 				if (existingString.deleted)
 					return this.doPlainUpdate(existingString.id, null, false, updateString.updateDomain, updateString.updateUser, updateString.updateTime, updateSource, existingString, this.domainName);
-				else return new InternalPooledString(existingString.createTime, existingString.createDomain, existingString.createUser, existingString.updateTime, existingString.updateDomain, existingString.updateUser, existingString.localUpdateTime, false, existingString.stringPlain, updateString.parseError);
+				else return new InternalPooledString(existingString.createTime, existingString.createDomain, existingString.createUser, existingString.updateTime, existingString.updateDomain, existingString.updateUser, existingString.localUpdateTime, existingString.canonicalId, false, existingString.stringPlain, updateString.parseError);
 			}
 			
 			//	no parse given, we're done here safe for implicit un-deletions
@@ -1359,11 +1599,14 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		//	new string
 		else {
 			
+			//	use cluster ID to obtain canonical ID
+			String canonicalStringId = this.getCanonicalStringId(updateString.clusterId);
+			
 			//	get timestamp & create string object
 			long createTime = System.currentTimeMillis();
 			if (updateString.parseError.length() == 0)
-				updateString = new InternalPooledString(createTime, updateString.createDomain, updateString.createUser, createTime, updateString.updateDomain, updateString.updateUser, createTime, null, false, updateString.stringPlain, updateString.stringParsed);
-			else updateString = new InternalPooledString(createTime, updateString.createDomain, updateString.createUser, createTime, updateString.updateDomain, updateString.updateUser, createTime, false, updateString.stringPlain, updateString.parseError);
+				updateString = new InternalPooledString(createTime, updateString.createDomain, updateString.createUser, createTime, updateString.updateDomain, updateString.updateUser, createTime, canonicalStringId, false, updateString.stringPlain, updateString.stringParsed);
+			else updateString = new InternalPooledString(createTime, updateString.createDomain, updateString.createUser, createTime, updateString.updateDomain, updateString.updateUser, createTime, canonicalStringId, false, updateString.stringPlain, updateString.parseError);
 			
 			//	store string an return it
 			return (this.storeString(updateString, this.domainName, updateSource, false) ? updateString : null);
@@ -1422,7 +1665,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 								";";
 						int updated = this.io.executeUpdateQuery(query);
 						if (updated == 0) {
-							query = ("INSERT INTO " + this.parsedStringIdentifierTableName + " " +
+							query = ("INSERT INTO " + this.parsedStringIdentifierTableName + " " + 
 									psidd.insertParts.getProperty(psidd.updateParts.get(i)) +
 									";");
 							this.io.executeUpdateQuery(query);
@@ -1471,6 +1714,10 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 					", " + 
 					STRING_ID_HASH_COLUMN_NAME + 
 					", " + 
+					STRING_CLUSTER_ID_COLUMN_NAME + 
+					", " + 
+					STRING_CLUSTER_ID_HASH_COLUMN_NAME + 
+					", " + 
 					CANONICAL_STRING_ID_COLUMN_NAME + 
 					", " + 
 					CANONICAL_STRING_ID_HASH_COLUMN_NAME + 
@@ -1504,6 +1751,10 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 					"'" + EasyIO.sqlEscape(string.id) + "'" +
 					", " + 
 					string.id.hashCode() + 
+					", " +
+					"'" + EasyIO.sqlEscape(string.clusterId) + "'" +
+					", " + 
+					string.clusterId.hashCode() + 
 					", " +
 					"'" + EasyIO.sqlEscape(string.canonicalId) + "'" +
 					", " + 
@@ -1823,6 +2074,8 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		String fields = (
 				STRING_ID_COLUMN_NAME + 
 				", " + 
+				STRING_CLUSTER_ID_COLUMN_NAME + 
+				", " + 
 				CANONICAL_STRING_ID_COLUMN_NAME + 
 				", " + 
 				PARSE_CHECKSUM_COLUMN_NAME + 
@@ -1862,6 +2115,41 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		return new SqlParsedStringIterator(sqr, 'O');
 	}
 	
+	private String getCanonicalStringId(String clusterId) {
+		String fields = (
+				STRING_ID_COLUMN_NAME + 
+				", " + 
+				CANONICAL_STRING_ID_COLUMN_NAME + 
+				"");
+		String query = "SELECT DISTINCT " + fields +
+				" FROM " + this.parsedStringTableName +
+				" WHERE " + STRING_CLUSTER_ID_HASH_COLUMN_NAME + " = " + clusterId.hashCode() + 
+					" AND " + STRING_CLUSTER_ID_COLUMN_NAME + " = '" + EasyIO.sqlEscape(clusterId) + "'" + 
+				";";
+		
+		SqlQueryResult sqr = null;
+		try {
+			sqr = this.io.executeSelectQuery(query);
+			String stringId = null;
+			while (sqr.next()) {
+				stringId = sqr.getString(0);
+				String canonicalStringId = sqr.getString(1);
+				if ((canonicalStringId != null) && (canonicalStringId.length() != 0))
+					return canonicalStringId;
+			}
+			return stringId;
+		}
+		catch (SQLException sqle) {
+			System.out.println("ParsedStringPool: " + sqle.getClass().getName() + " (" + sqle.getMessage() + ") while getting strings.");
+			System.out.println("  query was " + query);
+			return null;
+		}
+		finally {
+			if (sqr != null)
+				sqr.close();
+		}
+	}
+	
 	private InternalPooledStringIterator getInternalLinkedStrings(String canonicalId) throws IOException {
 		if ((canonicalId == null) || (canonicalId.trim().length() == 0))
 			return new InternalPooledStringIterator() {
@@ -1876,6 +2164,8 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		
 		String fields = (
 				STRING_ID_COLUMN_NAME + 
+				", " + 
+				STRING_CLUSTER_ID_COLUMN_NAME + 
 				", " + 
 				CANONICAL_STRING_ID_COLUMN_NAME + 
 				", " + 
@@ -1978,6 +2268,8 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		//	assemble fields
 		String fields = (
 				"data." + STRING_ID_COLUMN_NAME + 
+				", " +
+				"data." + STRING_CLUSTER_ID_COLUMN_NAME + 
 				", " +
 				"data." + CANONICAL_STRING_ID_COLUMN_NAME + 
 				", " + 
@@ -2176,11 +2468,12 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	 * Generate a 32 character hexadecimal ID from a given string. This default
 	 * implementation returns the MD5 hash of the argument string in UTF-8
 	 * encoding. Subclasses overwriting this method with their own ID generation
-	 * have to make sure of three things for Open String Pool to worl properly:
+	 * have to make sure of three things for Open String Pool to work properly:
 	 * <ul>
-	 * <li>returned IDs are exactly 32 characters long, preferably 128 bit HEX</li>
+	 * <li>returned IDs are exactly 32 characters long, preferably 128 bit HEX
+	 * in upper case</li>
 	 * <li>returned IDs are always the same for the same argument string</li>
-	 * <li>the same implementation of this method is used on all modes</li>
+	 * <li>the same implementation of this method is used on all nodes</li>
 	 * </ul>
 	 * Implementations should also bear in mind that this method might be called
 	 * by multiple threads at the same time. This implementation uses an
@@ -2203,6 +2496,24 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		finally {
 			returnMessageDigest(md);
 		}
+	}
+	
+	/**
+	 * Generate the 'essence' of a string, used for assigning newly incoming
+	 * strings to a cluster. This method is intended to strip away any aspects
+	 * of a string deemed non-essential by a specific Open String Pool
+	 * application. This default implementation simply returns the argument
+	 * string. Sub classes may overwrite this method to, for instance,
+	 * <ul>
+	 * <li>strip away accents and other diacritic markers,</li>
+	 * <li>strip out punctuation marks,</li>
+	 * <li>convert the argument string to all-lower or all-upper case.</li>
+	 * </ul>
+	 * @param str the string to extract the essence from
+	 * @return the essence of the argument string
+	 */
+	protected String getClusteringString(String str) {
+		return str;
 	}
 	
 	/**
@@ -2337,6 +2648,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	//	TODO_ne externalize this, or maybe not
 	private class InternalPooledString {
 		final String id;
+		final String clusterId;
 		final String canonicalId;
 		final long createTime;
 		final String createDomain;
@@ -2355,6 +2667,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		//	copy constructor for return from doPlainUpdate
 		InternalPooledString(InternalPooledString existingString, String canonicalStringId, boolean deleted, String updateDomain, String updateUser, long updateTime, long localUpdateTime) {
 			this.id = existingString.id;
+			this.clusterId = existingString.clusterId;
 			this.canonicalId = (((canonicalStringId == null) || (canonicalStringId.length() == 0)) ? existingString.canonicalId : canonicalStringId);
 			this.parseChecksum = existingString.parseChecksum;
 			this.parseError = existingString.parseError;
@@ -2373,17 +2686,18 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		
 		//	used for RSS feed output
 		InternalPooledString(String id, long createTime, long updateTime, String stringPlain) {
-			this(id, null, null, createTime, null, null, updateTime, null, null, -1, false, stringPlain);
+			this(id, null, null, null, createTime, null, null, updateTime, null, null, -1, false, stringPlain);
 		}
 		
 		//	used for feed output
 		InternalPooledString(String id, String canonicalId, String parseChecksum, long createTime, long updateTime, long localUpdateTime, boolean deleted) {
-			this(id, canonicalId, parseChecksum, createTime, null, null, updateTime, null, null, localUpdateTime, deleted, null);
+			this(id, null, canonicalId, parseChecksum, createTime, null, null, updateTime, null, null, localUpdateTime, deleted, null);
 		}
 		
 		//	used for search results and feed output, and for delete/undelete
-		InternalPooledString(String id, String canonicalId, String parseChecksum, long createTime, String createDomain, String createUser, long updateTime, String updateDomain, String updateUser, long localUpdateTime, boolean deleted, String stringPlain) {
+		InternalPooledString(String id, String clusterId, String canonicalId, String parseChecksum, long createTime, String createDomain, String createUser, long updateTime, String updateDomain, String updateUser, long localUpdateTime, boolean deleted, String stringPlain) {
 			this.id = id;
+			this.clusterId = clusterId;
 			this.canonicalId = ((canonicalId == null) ? "" : canonicalId);
 			this.parseChecksum = ((parseChecksum == null) ? "" : parseChecksum);
 			this.parseError = "";
@@ -2401,7 +2715,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		}
 		
 		//	used for parse errors in PUT upload
-		InternalPooledString(long createTime, String createDomain, String createUser, long updateTime, String updateDomain, String updateUser, long localUpdateTime, boolean deleted, String stringPlain, String parseError) throws IOException {
+		InternalPooledString(long createTime, String createDomain, String createUser, long updateTime, String updateDomain, String updateUser, long localUpdateTime, String clusterId, boolean deleted, String stringPlain, String parseError) throws IOException {
 			this.createTime = createTime;
 			this.createDomain = this.checkString(createDomain, StringPoolServlet.this.domainName);
 			this.createUser = this.checkString(createUser, "Anonymous");
@@ -2412,6 +2726,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			this.deleted = deleted;
 			this.stringPlain = getNormalizedString(stringPlain);
 			this.id = getStringId(this.stringPlain);
+			this.clusterId = getStringId(getClusteringString(this.stringPlain));
 			this.canonicalId = "";
 			this.type = null;
 			this.stringParsed = null;
@@ -2436,6 +2751,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 			this.deleted = deleted;
 			this.stringPlain = getNormalizedString(stringPlain);
 			this.id = getStringId(this.stringPlain);
+			this.clusterId = getStringId(getClusteringString(this.stringPlain));
 			this.canonicalId = ((canonicalStringId == null) ? "" : canonicalStringId);
 			
 			//	only plain string, no clue regarding type
@@ -2552,18 +2868,19 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 							this.sqr.getString(3)
 						);
 				else this.next = new InternalPooledString(
-						this.sqr.getString(0), 
-						this.sqr.getString(1), 
-						this.sqr.getString(2), 
-						Long.parseLong(this.sqr.getString(3)), 
-						this.sqr.getString(4), 
-						this.sqr.getString(5), 
-						Long.parseLong(this.sqr.getString(6)), 
-						this.sqr.getString(7), 
-						this.sqr.getString(8), 
-						Long.parseLong(this.sqr.getString(9)), 
-						"D".equals(this.sqr.getString(10)),
-						this.sqr.getString(11)
+						this.sqr.getString(0),
+						this.sqr.getString(1),
+						this.sqr.getString(2),
+						this.sqr.getString(3),
+						this.sqr.getLong(4),
+						this.sqr.getString(5),
+						this.sqr.getString(6),
+						this.sqr.getLong(7),
+						this.sqr.getString(8),
+						this.sqr.getString(9),
+						this.sqr.getLong(10),
+						"D".equals(this.sqr.getString(11)),
+						this.sqr.getString(12)
 					);
 				return true;
 			}
@@ -2662,14 +2979,6 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 					if (ips.stringParsed != null) try {
 						this.stringParsed = this.rolloutStringParsed(ips.stringParsed);
 					} catch (IOException ioe) {}
-//					MutableAnnotation stringParsed = ((ips.stringParsed == null) ? getParsedString(ips.id) : ips.stringParsed);
-//					if (stringParsed != null) try {
-//						StringWriter sw = new StringWriter();
-//						BufferedWriter bw = new BufferedWriter(sw);
-//						AnnotationUtils.writeXML(stringParsed, bw);
-//						bw.flush();
-//						this.stringParsed = sw.toString();
-//					} catch (IOException ioe) {}
 				}
 				this.parseChecksum = (((ips.parseChecksum != null) && (ips.parseChecksum.length() != 0)) ? ips.parseChecksum : null);
 			}
@@ -2679,7 +2988,9 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		}
 		public String getStringParsed() {
 			if (this.hasStringParsed && (this.stringParsed == null)) try {
-				this.stringParsed = this.rolloutStringParsed(StringPoolServlet.this.getStringParsed(this.id));
+				MutableAnnotation stringParsed = StringPoolServlet.this.getStringParsed(this.id);
+				if (stringParsed != null)
+					this.stringParsed = this.rolloutStringParsed(stringParsed);
 			} catch (IOException ioe) {}
 			return this.stringParsed;
 		}

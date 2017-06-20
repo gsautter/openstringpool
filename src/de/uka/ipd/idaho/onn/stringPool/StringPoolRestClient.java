@@ -819,6 +819,14 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 	}
 //	
 //	public static void main(String[] args) throws Exception {
+//		StringPoolRestClient sprc = new StringPoolRestClient("http://plazi.cs.umb.edu/RefBank/rbk");
+//		sprc.updateString(
+//				"Støp-Bowitz, C. (1992) Polychètes pèlagiques des Campagnes de \"L'ombango\" dans les eaux équatoriales et tropicales ouest-africaines. Editions de l'ORSTOM. Coll. Études et Thèses. Paris, 115 pp.",
+//				"<mods:mods xmlns:mods=\"http://www.loc.gov/mods/v3\">\r\n<mods:titleInfo>\r\n<mods:title>Polychètes pèlagiques des Campagnes de \" L’ombango \" dans les eaux équatoriales et tropicales ouest­africaines. Editions de l’ORSTOM. Coll. Études et Thèses</mods:title>\r\n</mods:titleInfo>\r\n<mods:name type=\"personal\">\r\n<mods:role>\r\n<mods:roleTerm>Author</mods:roleTerm>\r\n</mods:role>\r\n<mods:namePart>Støp­Bowitz, C.</mods:namePart>\r\n</mods:name>\r\n<mods:typeOfResource>text</mods:typeOfResource>\r\n<mods:originInfo>\r\n<mods:dateIssued>1992</mods:dateIssued>\r\n<mods:publisher>Paris</mods:publisher>\r\n</mods:originInfo>\r\n<mods:note>115 pp.</mods:note>\r\n<mods:classification>book</mods:classification>\r\n</mods:mods>\r\n",
+//				"plazi");
+//	}
+//	
+//	public static void main(String[] args) throws Exception {
 ////		if (true) {
 //////			System.out.println(parseTime("Sat, 15 Oct 2011 19:04:19 +0000"));
 ////			System.out.println(parseTime("Sat, 15 Oct 2011 19:04:19 +0000"));
