@@ -33,7 +33,6 @@ import java.io.Writer;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
 import java.text.ParseException;
 import java.util.ArrayList;
@@ -54,6 +53,8 @@ import de.uka.ipd.idaho.easyIO.IoProvider;
 import de.uka.ipd.idaho.easyIO.SqlQueryResult;
 import de.uka.ipd.idaho.easyIO.sql.TableColumnDefinition;
 import de.uka.ipd.idaho.easyIO.sql.TableDefinition;
+import de.uka.ipd.idaho.easyIO.util.HashUtils;
+import de.uka.ipd.idaho.easyIO.util.HashUtils.MD5;
 import de.uka.ipd.idaho.easyIO.util.RandomByteSource;
 import de.uka.ipd.idaho.easyIO.web.WebAppHost;
 import de.uka.ipd.idaho.gamta.AnnotationUtils;
@@ -2440,29 +2441,29 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 				sqr.close();
 		}
 	}
-	
-	private static LinkedList checksumDigesters = new LinkedList();
-	private static MessageDigest getMessageDigest() throws IOException {
-		synchronized (checksumDigesters) {
-			if (checksumDigesters.size() != 0)
-				return ((MessageDigest) checksumDigesters.removeFirst());
-			else try {
-				return MessageDigest.getInstance("MD5");
-			}
-			catch (NoSuchAlgorithmException nsae) {
-				System.out.println(nsae.getClass().getName() + " (" + nsae.getMessage() + ") while creating checksum digester.");
-				nsae.printStackTrace(System.out); // should not happen, but Java don't know ...
-				throw new IOException(nsae.getMessage());
-			}
-		}
-	}
-	private static void returnMessageDigest(MessageDigest md) {
-		if (md == null)
-			return;
-		synchronized (checksumDigesters) {
-			checksumDigesters.addLast(md);
-		}
-	}
+//	
+//	private static LinkedList checksumDigesters = new LinkedList();
+//	private static MessageDigest getMessageDigest() throws IOException {
+//		synchronized (checksumDigesters) {
+//			if (checksumDigesters.size() != 0)
+//				return ((MessageDigest) checksumDigesters.removeFirst());
+//			else try {
+//				return MessageDigest.getInstance("MD5");
+//			}
+//			catch (NoSuchAlgorithmException nsae) {
+//				System.out.println(nsae.getClass().getName() + " (" + nsae.getMessage() + ") while creating checksum digester.");
+//				nsae.printStackTrace(System.out); // should not happen, but Java don't know ...
+//				throw new IOException(nsae.getMessage());
+//			}
+//		}
+//	}
+//	private static void returnMessageDigest(MessageDigest md) {
+//		if (md == null)
+//			return;
+//		synchronized (checksumDigesters) {
+//			checksumDigesters.addLast(md);
+//		}
+//	}
 	
 	/**
 	 * Generate a 32 character hexadecimal ID from a given string. This default
@@ -2483,19 +2484,20 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	 * @throws IOException if any occurs
 	 */
 	protected String getStringId(String string) throws IOException {
-		MessageDigest md = null;
-		try {
-			md = getMessageDigest();
-			md.reset();
-			
-			md.update(string.getBytes("UTF-8"));
-			byte[] checksumBytes = md.digest();
-			
-			return new String(RandomByteSource.getHexCode(checksumBytes));
-		}
-		finally {
-			returnMessageDigest(md);
-		}
+		return HashUtils.getMd5(string);
+//		MessageDigest md = null;
+//		try {
+//			md = getMessageDigest();
+//			md.reset();
+//			
+//			md.update(string.getBytes("UTF-8"));
+//			byte[] checksumBytes = md.digest();
+//			
+//			return new String(RandomByteSource.getHexCode(checksumBytes));
+//		}
+//		finally {
+//			returnMessageDigest(md);
+//		}
 	}
 	
 	/**
@@ -2536,26 +2538,35 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 	 * @throws IOException if any occurs
 	 */
 	protected String getParseChecksum(QueriableAnnotation parsedString) throws IOException {
-		MessageDigest md = null;
-		try {
-			md = getMessageDigest();
-			md.reset();
-			StringWriter stringReceiver = new StringWriter();
-			BufferedWriter stringWriter = new BufferedWriter(stringReceiver) {
-				public void newLine() throws IOException {
-					//	ignore newlines to eliminate whitespace between tags
-				}
-			};
-			AnnotationUtils.writeXML(parsedString, stringWriter);
-			stringWriter.flush();
-			md.update(stringReceiver.toString().getBytes("UTF-8"));
-			byte[] checksumBytes = md.digest();
-			
-			return new String(RandomByteSource.getHexCode(checksumBytes));
-		}
-		finally {
-			returnMessageDigest(md);
-		}
+		StringWriter stringReceiver = new StringWriter();
+		BufferedWriter stringWriter = new BufferedWriter(stringReceiver) {
+			public void newLine() throws IOException {
+				//	ignore newlines to eliminate whitespace between tags
+			}
+		};
+		AnnotationUtils.writeXML(parsedString, stringWriter);
+		stringWriter.flush();
+		return HashUtils.getMd5(stringReceiver.toString().getBytes("UTF-8"));
+//		MessageDigest md = null;
+//		try {
+//			md = getMessageDigest();
+//			md.reset();
+//			StringWriter stringReceiver = new StringWriter();
+//			BufferedWriter stringWriter = new BufferedWriter(stringReceiver) {
+//				public void newLine() throws IOException {
+//					//	ignore newlines to eliminate whitespace between tags
+//				}
+//			};
+//			AnnotationUtils.writeXML(parsedString, stringWriter);
+//			stringWriter.flush();
+//			md.update(stringReceiver.toString().getBytes("UTF-8"));
+//			byte[] checksumBytes = md.digest();
+//			
+//			return new String(RandomByteSource.getHexCode(checksumBytes));
+//		}
+//		finally {
+//			returnMessageDigest(md);
+//		}
 	}
 	
 	private static HashSet urlEtcPrefixes = new HashSet();

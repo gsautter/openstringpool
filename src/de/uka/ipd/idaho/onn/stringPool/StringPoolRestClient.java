@@ -152,8 +152,8 @@ public class StringPoolRestClient implements StringPoolClient, StringPoolConstan
 		}
 	}
 	
+	private static final boolean debugThreading = false;
 	private class ThreadedPSI implements PooledStringIterator {
-		private final boolean debugThreading = false;
 		private IOException ioe;
 		private PooledString next;
 		private Thread parser;
