@@ -32,7 +32,6 @@ import java.io.StringWriter;
 import java.io.Writer;
 import java.net.URL;
 import java.net.URLEncoder;
-import java.security.MessageDigest;
 import java.sql.SQLException;
 import java.text.ParseException;
 import java.util.ArrayList;
@@ -54,8 +53,6 @@ import de.uka.ipd.idaho.easyIO.SqlQueryResult;
 import de.uka.ipd.idaho.easyIO.sql.TableColumnDefinition;
 import de.uka.ipd.idaho.easyIO.sql.TableDefinition;
 import de.uka.ipd.idaho.easyIO.util.HashUtils;
-import de.uka.ipd.idaho.easyIO.util.HashUtils.MD5;
-import de.uka.ipd.idaho.easyIO.util.RandomByteSource;
 import de.uka.ipd.idaho.easyIO.web.WebAppHost;
 import de.uka.ipd.idaho.gamta.AnnotationUtils;
 import de.uka.ipd.idaho.gamta.Gamta;
@@ -256,7 +253,7 @@ public class StringPoolServlet extends OnnServlet implements StringPoolClient, S
 		String parsedStringFolderName = externalDataName;
 		if (!parsedStringFolderName.endsWith("s")) {
 			if (parsedStringFolderName.endsWith("y") && (parsedStringFolderName.length() > 1)) {
-				if (Gamta.VOWELS.indexOf(parsedStringFolderName.charAt(parsedStringFolderName.length() - 2)) == -1)
+				if (Gamta.LATIN_VOWELS.indexOf(parsedStringFolderName.charAt(parsedStringFolderName.length() - 2)) == -1)
 					parsedStringFolderName = (parsedStringFolderName.substring(0, (parsedStringFolderName.length() - 1)) + "ies");
 				else parsedStringFolderName = (parsedStringFolderName + "s");
 			}
